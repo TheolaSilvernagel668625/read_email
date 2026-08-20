@@ -5,6 +5,8 @@ const DEFAULT_TOKEN_ENDPOINT = "https://login.microsoftonline.com/consumers/oaut
 const GRAPH_MESSAGES_URL = "https://graph.microsoft.com/v1.0/me/messages";
 const IMAP_SCOPE = "https://outlook.office.com/IMAP.AccessAsUser.All offline_access";
 const GRAPH_SCOPE = "https://graph.microsoft.com/Mail.Read offline_access";
+const MAX_HTML_CHARS = 250000;
+const MAX_TEXT_CHARS = 10000;
 
 function makeError(message, code) {
   const error = new Error(message);
@@ -25,8 +27,17 @@ function redactText(value, secrets = []) {
 function redactValue(value, secrets = [], depth = 0) {
   if (depth > 8) return "[MAX_DEPTH]";
   if (typeof value === "string") return redactText(value, secrets);
-  if (value === null || value === undefined || typeof value === "number" || typeof value === "boolean") return value;
-  if (Array.isArray(value)) return value.map((item) => redactValue(item, secrets, depth + 1));
+  if (
+    value === null ||
+    value === undefined ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => redactValue(item, secrets, depth + 1));
+  }
 
   if (typeof value === "object") {
     const output = {};
@@ -100,15 +111,49 @@ function safeErrorDetails(error, secrets = []) {
 function parseAccount(line) {
   const parts = String(line || "").trim().split("|");
   if (parts.length !== 4) {
-    throw makeError("Expected exactly 4 fields: email|password|refresh_token|client_id.", "INVALID_ACCOUNT_FORMAT");
+    throw makeError(
+      "Expected exactly 4 fields: email|password|refresh_token|client_id.",
+      "INVALID_ACCOUNT_FORMAT"
+    );
   }
 
   const [email, password, refreshToken, clientId] = parts.map((value) => value.trim());
-  if (!email || !email.includes("@")) throw makeError("Invalid email address.", "INVALID_EMAIL");
-  if (!refreshToken) throw makeError("refresh_token is empty.", "INVALID_ACCOUNT_FORMAT");
-  if (!clientId) throw makeError("client_id is empty.", "INVALID_ACCOUNT_FORMAT");
+  if (!email || !email.includes("@")) {
+    throw makeError("Invalid email address.", "INVALID_EMAIL");
+  }
+  if (!refreshToken) {
+    throw makeError("refresh_token is empty.", "INVALID_ACCOUNT_FORMAT");
+  }
+  if (!clientId) {
+    throw makeError("client_id is empty.", "INVALID_ACCOUNT_FORMAT");
+  }
 
   return { email, password, refreshToken, clientId };
+}
+
+function clampHtml(value) {
+  return typeof value === "string" ? value.trim().slice(0, MAX_HTML_CHARS) : "";
+}
+
+function htmlToTextFallback(value) {
+  if (typeof value !== "string" || !value) return "";
+
+  return value
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<\/(p|div|tr|li|h[1-6])\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
 }
 
 // IMPORTANT: this function returns the provider payload untouched.
@@ -162,7 +207,9 @@ async function getAccessToken(account, scope) {
   } catch (error) {
     const isTimeout = error && (error.name === "TimeoutError" || error.name === "AbortError");
     throw makeProviderError(
-      isTimeout ? "Microsoft token request timed out." : "Microsoft token request failed before a response was received.",
+      isTimeout
+        ? "Microsoft token request timed out."
+        : "Microsoft token request failed before a response was received.",
       {
         provider: "microsoft_token",
         code: isTimeout ? "MICROSOFT_TOKEN_TIMEOUT" : "MICROSOFT_TOKEN_NETWORK_ERROR",
@@ -180,7 +227,10 @@ async function getAccessToken(account, scope) {
   if (!response.ok) {
     const payload = responseData.payload || {};
     const errorName = payload.error || "token_error";
-    const description = payload.error_description || redactText(responseData.rawBody, [account.refreshToken]) || "Token exchange failed.";
+    const description =
+      payload.error_description ||
+      redactText(responseData.rawBody, [account.refreshToken]) ||
+      "Token exchange failed.";
 
     throw makeProviderError(`${errorName}: ${description}`, {
       provider: "microsoft_token",
@@ -194,8 +244,6 @@ async function getAccessToken(account, scope) {
     });
   }
 
-  // Use the RAW payload here. Sanitizing before this point would replace
-  // access_token with "[REDACTED]" and send that literal string to Graph/IMAP.
   const payload = responseData.payload || {};
   const accessToken = typeof payload.access_token === "string" ? payload.access_token : "";
 
@@ -218,7 +266,9 @@ async function getAccessToken(account, scope) {
 function addressToString(address) {
   if (!address) return "";
   if (typeof address === "string") return address;
-  if (address.address) return address.name ? `${address.name} <${address.address}>` : address.address;
+  if (address.address) {
+    return address.name ? `${address.name} <${address.address}>` : address.address;
+  }
   return "";
 }
 
@@ -264,24 +314,34 @@ async function readImap(account, limit) {
       }
 
       const envelope = row.envelope || {};
-      const from = parsed && parsed.from
-        ? parsed.from.text
-        : (envelope.from || []).map(addressToString).filter(Boolean).join(", ");
-      const to = parsed && parsed.to
-        ? parsed.to.text
-        : (envelope.to || []).map(addressToString).filter(Boolean).join(", ");
-      const bodyText = parsed && typeof parsed.text === "string"
-        ? parsed.text
-        : parsed && typeof parsed.html === "string" ? parsed.html : "";
+      const from =
+        parsed && parsed.from
+          ? parsed.from.text
+          : (envelope.from || []).map(addressToString).filter(Boolean).join(", ");
+      const to =
+        parsed && parsed.to
+          ? parsed.to.text
+          : (envelope.to || []).map(addressToString).filter(Boolean).join(", ");
+
+      const bodyHtml = clampHtml(parsed && typeof parsed.html === "string" ? parsed.html : "");
+      const bodyText =
+        parsed && typeof parsed.text === "string" && parsed.text.trim()
+          ? parsed.text.trim()
+          : htmlToTextFallback(bodyHtml);
 
       results.push({
         id: String(row.uid || row.seq || ""),
         subject: (parsed && parsed.subject) || envelope.subject || "",
         from,
         to,
-        date: (parsed && parsed.date && parsed.date.toISOString()) || (row.internalDate && row.internalDate.toISOString()) || null,
+        date:
+          (parsed && parsed.date && parsed.date.toISOString()) ||
+          (row.internalDate && row.internalDate.toISOString()) ||
+          null,
         unread: row.flags ? !row.flags.has("\\Seen") : null,
-        body: bodyText.trim().slice(0, 10000)
+        body: bodyText.slice(0, MAX_TEXT_CHARS),
+        bodyHtml,
+        bodyType: bodyHtml ? "html" : "text"
       });
     }
 
@@ -289,17 +349,20 @@ async function readImap(account, limit) {
   } catch (error) {
     if (error && error.provider) throw error;
 
-    throw makeProviderError(error && error.message ? error.message : "Microsoft IMAP request failed.", {
-      provider: "microsoft_imap",
-      code: (error && error.code) || "IMAP_ERROR",
-      status: error && Number.isInteger(error.responseStatus) ? error.responseStatus : null,
-      details: {
-        host: "outlook.office365.com",
-        port: 993,
-        mailbox: "INBOX",
-        error: safeErrorDetails(error, [account.refreshToken, accessToken])
+    throw makeProviderError(
+      error && error.message ? error.message : "Microsoft IMAP request failed.",
+      {
+        provider: "microsoft_imap",
+        code: (error && error.code) || "IMAP_ERROR",
+        status: error && Number.isInteger(error.responseStatus) ? error.responseStatus : null,
+        details: {
+          host: "outlook.office365.com",
+          port: 993,
+          mailbox: "INBOX",
+          error: safeErrorDetails(error, [account.refreshToken, accessToken])
+        }
       }
-    });
+    );
   } finally {
     if (lock) lock.release();
     if (client.usable) {
@@ -319,21 +382,26 @@ async function readGraph(account, limit) {
   const url = new URL(GRAPH_MESSAGES_URL);
   url.searchParams.set("$top", String(limit));
   url.searchParams.set("$orderby", "receivedDateTime desc");
-  url.searchParams.set("$select", "id,subject,from,toRecipients,receivedDateTime,isRead,body,bodyPreview");
+  url.searchParams.set(
+    "$select",
+    "id,subject,from,toRecipients,receivedDateTime,isRead,body,bodyPreview"
+  );
 
   let response;
   try {
     response = await fetch(url, {
       headers: {
         authorization: `Bearer ${accessToken}`,
-        prefer: 'outlook.body-content-type="text"'
+        prefer: 'outlook.body-content-type="html"'
       },
       signal: AbortSignal.timeout(30000)
     });
   } catch (error) {
     const isTimeout = error && (error.name === "TimeoutError" || error.name === "AbortError");
     throw makeProviderError(
-      isTimeout ? "Microsoft Graph request timed out." : "Microsoft Graph request failed before a response was received.",
+      isTimeout
+        ? "Microsoft Graph request timed out."
+        : "Microsoft Graph request failed before a response was received.",
       {
         provider: "microsoft_graph",
         code: isTimeout ? "MICROSOFT_GRAPH_TIMEOUT" : "MICROSOFT_GRAPH_NETWORK_ERROR",
@@ -348,9 +416,15 @@ async function readGraph(account, limit) {
   const responseData = await readResponseRaw(response);
 
   if (!response.ok) {
-    const detail = responseData.payload && responseData.payload.error ? responseData.payload.error : {};
+    const detail =
+      responseData.payload && responseData.payload.error
+        ? responseData.payload.error
+        : {};
     const code = detail.code || `GRAPH_HTTP_${response.status}`;
-    const message = detail.message || redactText(responseData.rawBody, [account.refreshToken, accessToken]) || "Mailbox read failed.";
+    const message =
+      detail.message ||
+      redactText(responseData.rawBody, [account.refreshToken, accessToken]) ||
+      "Mailbox read failed.";
 
     throw makeProviderError(`Microsoft Graph ${response.status}: ${message}`, {
       provider: "microsoft_graph",
@@ -364,23 +438,44 @@ async function readGraph(account, limit) {
   }
 
   const payload = responseData.payload || {};
-  return (payload.value || []).map((item) => ({
-    id: item.id || "",
-    subject: item.subject || "",
-    from: (item.from && item.from.emailAddress && item.from.emailAddress.address) || "",
-    to: (item.toRecipients || [])
-      .map((recipient) => recipient && recipient.emailAddress && recipient.emailAddress.address)
-      .filter(Boolean),
-    date: item.receivedDateTime || null,
-    unread: typeof item.isRead === "boolean" ? !item.isRead : null,
-    body: ((item.body && typeof item.body.content === "string") ? item.body.content : (item.bodyPreview || "")).slice(0, 10000)
-  }));
+  return (payload.value || []).map((item) => {
+    const graphBody = item.body || {};
+    const graphContent =
+      typeof graphBody.content === "string" ? graphBody.content : "";
+    const isHtml = String(graphBody.contentType || "").toLowerCase() === "html";
+    const bodyHtml = isHtml ? clampHtml(graphContent) : "";
+    const bodyText = isHtml
+      ? String(item.bodyPreview || htmlToTextFallback(bodyHtml)).trim()
+      : String(graphContent || item.bodyPreview || "").trim();
+
+    return {
+      id: item.id || "",
+      subject: item.subject || "",
+      from:
+        (item.from && item.from.emailAddress && item.from.emailAddress.address) || "",
+      to: (item.toRecipients || [])
+        .map(
+          (recipient) =>
+            recipient &&
+            recipient.emailAddress &&
+            recipient.emailAddress.address
+        )
+        .filter(Boolean),
+      date: item.receivedDateTime || null,
+      unread: typeof item.isRead === "boolean" ? !item.isRead : null,
+      body: bodyText.slice(0, MAX_TEXT_CHARS),
+      bodyHtml,
+      bodyType: bodyHtml ? "html" : "text"
+    };
+  });
 }
 
 async function readMailbox(account, options = {}) {
   const backend = options.backend || "imap";
   const limit = options.limit || 10;
-  return backend === "graph" ? readGraph(account, limit) : readImap(account, limit);
+  return backend === "graph"
+    ? readGraph(account, limit)
+    : readImap(account, limit);
 }
 
 module.exports = {
