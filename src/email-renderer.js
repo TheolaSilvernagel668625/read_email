@@ -53,9 +53,34 @@ const EMAIL_RENDERER_STYLE = String.raw`<style id="read-email-renderer-style">
     background: var(--color-mint-soft);
     border-color: var(--color-mint-deep);
   }
-  .email-renderer-button:focus-visible {
+  .email-renderer-button:focus-visible,
+  .email-renderer-icon-button:focus-visible,
+  .email-modal-close:focus-visible {
     outline: 3px solid var(--color-focus);
     outline-offset: 2px;
+  }
+  .email-renderer-icon-button {
+    width: 33px;
+    height: 33px;
+    padding: 0;
+    display: inline-grid;
+    place-items: center;
+    border: 1px solid var(--color-rule-strong);
+    border-radius: 50%;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    cursor: pointer;
+    transition: background-color 140ms, border-color 140ms, transform 140ms var(--ease-out);
+  }
+  .email-renderer-icon-button:hover {
+    background: var(--color-pear);
+    border-color: var(--color-ink);
+    transform: translateY(-1px);
+  }
+  .email-renderer-icon-button svg {
+    width: 15px;
+    height: 15px;
+    display: block;
   }
   .email-renderer-frame-wrap {
     overflow: hidden;
@@ -91,13 +116,176 @@ const EMAIL_RENDERER_STYLE = String.raw`<style id="read-email-renderer-style">
     display: none;
   }
 
+  body.email-modal-open {
+    overflow: hidden !important;
+  }
+  .email-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: grid;
+    place-items: center;
+    padding: clamp(.7rem, 2.5vw, 1.6rem);
+    background: rgba(24, 24, 21, .62);
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+  }
+  .email-modal {
+    width: min(1180px, 100%);
+    height: min(92vh, 900px);
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1.5px solid var(--color-rule-strong);
+    border-radius: 22px;
+    background: var(--color-paper);
+    box-shadow: 0 28px 90px rgba(0, 0, 0, .24);
+  }
+  .email-modal-head {
+    flex: 0 0 auto;
+    min-height: 74px;
+    padding: .9rem 1rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 1rem;
+    border-bottom: 1px solid var(--color-rule);
+    background: var(--color-pear-soft);
+  }
+  .email-modal-heading {
+    min-width: 0;
+  }
+  .email-modal-kicker {
+    margin: 0 0 .28rem;
+    color: var(--color-muted);
+    font: 700 .58rem/1 var(--font-label);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+  .email-modal-subject {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .98rem;
+    line-height: 1.25;
+    font-weight: 700;
+  }
+  .email-modal-from {
+    margin: .25rem 0 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-muted);
+    font-size: .7rem;
+  }
+  .email-modal-head-actions {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+  }
+  .email-modal-close {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border: 1.5px solid var(--color-ink);
+    border-radius: 50%;
+    background: var(--color-pear);
+    color: var(--color-ink);
+    cursor: pointer;
+    font: 700 1rem/1 var(--font-label);
+  }
+  .email-modal-close:hover {
+    background: var(--color-pear-deep);
+  }
+  .email-modal-toolbar {
+    flex: 0 0 auto;
+    padding: .65rem .9rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .7rem;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--color-rule);
+    background: var(--color-paper-2);
+  }
+  .email-modal-toolbar-note {
+    margin: 0;
+    color: var(--color-muted);
+    font: 500 .56rem/1.45 var(--font-label);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  .email-modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: .8rem;
+    background: var(--color-paper);
+  }
+  .email-modal-frame-wrap {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border: 1px solid var(--color-rule);
+    border-radius: 14px;
+    background: #fff;
+  }
+  .email-modal-frame {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #fff;
+  }
+  .email-modal-plain {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: auto;
+    padding: 1rem;
+    box-sizing: border-box;
+    border: 1px solid var(--color-rule);
+    border-radius: 14px;
+    background: var(--color-quiet);
+    color: var(--color-ink-2);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: 500 .78rem/1.65 var(--font-label);
+  }
+
   @media (max-width: 620px) {
     .email-renderer-toolbar {
       align-items: flex-start;
       flex-direction: column;
     }
+    .email-renderer-actions {
+      width: 100%;
+    }
     .email-renderer-frame {
       height: 300px;
+    }
+    .email-modal-backdrop {
+      padding: .35rem;
+    }
+    .email-modal {
+      height: 96vh;
+      border-radius: 16px;
+    }
+    .email-modal-head {
+      min-height: 68px;
+      padding: .75rem;
+    }
+    .email-modal-subject {
+      font-size: .88rem;
+    }
+    .email-modal-toolbar {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    .email-modal-body {
+      padding: .45rem;
     }
   }
 </style>`;
@@ -108,6 +296,7 @@ const EMAIL_RENDERER_SCRIPT = String.raw`<script id="read-email-renderer-script"
   var nativeFetch = window.fetch.bind(window);
   var results = null;
   var resultsObserver = null;
+  var activeModal = null;
 
   function isReadEndpoint(input) {
     try {
@@ -244,6 +433,209 @@ const EMAIL_RENDERER_SCRIPT = String.raw`<script id="read-email-renderer-script"
     } catch (error) {}
   }
 
+  function makeExpandIcon() {
+    var ns = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+
+    var paths = [
+      'M8 3H3v5',
+      'M3 3l6 6',
+      'M16 21h5v-5',
+      'M21 21l-6-6'
+    ];
+
+    paths.forEach(function (d) {
+      var path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', d);
+      svg.appendChild(path);
+    });
+
+    return svg;
+  }
+
+  function closeModal() {
+    if (!activeModal) return;
+    var restoreFocus = activeModal.restoreFocus;
+    activeModal.backdrop.remove();
+    activeModal = null;
+    document.body.classList.remove('email-modal-open');
+    if (restoreFocus && typeof restoreFocus.focus === 'function') {
+      try { restoreFocus.focus(); } catch (error) {}
+    }
+  }
+
+  function openModal(message, options) {
+    closeModal();
+
+    var state = {
+      imagesLoaded: Boolean(options && options.imagesLoaded),
+      mode: options && options.mode === 'text' ? 'text' : 'rendered'
+    };
+
+    var backdrop = document.createElement('div');
+    backdrop.className = 'email-modal-backdrop';
+    backdrop.setAttribute('role', 'presentation');
+
+    var modal = document.createElement('section');
+    modal.className = 'email-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Expanded email viewer');
+
+    var head = document.createElement('header');
+    head.className = 'email-modal-head';
+
+    var heading = document.createElement('div');
+    heading.className = 'email-modal-heading';
+    var kicker = document.createElement('p');
+    kicker.className = 'email-modal-kicker';
+    kicker.textContent = 'Expanded email';
+    var subject = document.createElement('p');
+    subject.className = 'email-modal-subject';
+    subject.textContent = String(message.subject || '(no subject)');
+    var from = document.createElement('p');
+    from.className = 'email-modal-from';
+    from.textContent = String(message.from || 'Unknown sender');
+    heading.appendChild(kicker);
+    heading.appendChild(subject);
+    heading.appendChild(from);
+
+    var headActions = document.createElement('div');
+    headActions.className = 'email-modal-head-actions';
+    var closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'email-modal-close';
+    closeButton.setAttribute('aria-label', 'Close expanded email');
+    closeButton.title = 'Close';
+    closeButton.textContent = '×';
+    headActions.appendChild(closeButton);
+
+    head.appendChild(heading);
+    head.appendChild(headActions);
+
+    var toolbar = document.createElement('div');
+    toolbar.className = 'email-modal-toolbar';
+    var toolbarActions = document.createElement('div');
+    toolbarActions.className = 'email-renderer-actions';
+
+    var renderedButton = document.createElement('button');
+    renderedButton.type = 'button';
+    renderedButton.className = 'email-renderer-button';
+    renderedButton.textContent = 'Rendered';
+
+    var textButton = document.createElement('button');
+    textButton.type = 'button';
+    textButton.className = 'email-renderer-button';
+    textButton.textContent = 'Plain text';
+
+    var hasImageMarkup = /<(img)\b|background\s*=|url\s*\(/i.test(String(message.bodyHtml || ''));
+    var imageButton = null;
+    if (hasImageMarkup) {
+      imageButton = document.createElement('button');
+      imageButton.type = 'button';
+      imageButton.className = 'email-renderer-button';
+      imageButton.textContent = state.imagesLoaded ? 'Images loaded' : 'Load images';
+      imageButton.disabled = state.imagesLoaded;
+      toolbarActions.appendChild(imageButton);
+    }
+
+    toolbarActions.appendChild(renderedButton);
+    toolbarActions.appendChild(textButton);
+
+    var toolbarNote = document.createElement('p');
+    toolbarNote.className = 'email-modal-toolbar-note';
+    toolbarNote.textContent = hasImageMarkup && !state.imagesLoaded
+      ? 'Remote images are blocked by default.'
+      : 'Sandboxed email viewer';
+
+    toolbar.appendChild(toolbarActions);
+    toolbar.appendChild(toolbarNote);
+
+    var modalBody = document.createElement('div');
+    modalBody.className = 'email-modal-body';
+
+    var frameWrap = document.createElement('div');
+    frameWrap.className = 'email-modal-frame-wrap';
+    var frame = document.createElement('iframe');
+    frame.className = 'email-modal-frame';
+    frame.setAttribute('title', 'Expanded rendered email content');
+    frame.setAttribute('sandbox', 'allow-same-origin allow-popups allow-popups-to-escape-sandbox');
+    frame.setAttribute('referrerpolicy', 'no-referrer');
+    frameWrap.appendChild(frame);
+
+    var plain = document.createElement('pre');
+    plain.className = 'email-modal-plain';
+    plain.textContent = String(message.body || 'No text body.');
+
+    modalBody.appendChild(frameWrap);
+    modalBody.appendChild(plain);
+
+    modal.appendChild(head);
+    modal.appendChild(toolbar);
+    modal.appendChild(modalBody);
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+    document.body.classList.add('email-modal-open');
+
+    function renderModalHtml() {
+      frame.srcdoc = buildEmailDocument(message.bodyHtml, state.imagesLoaded);
+      frameWrap.hidden = false;
+      plain.hidden = true;
+      renderedButton.classList.add('is-active');
+      textButton.classList.remove('is-active');
+      state.mode = 'rendered';
+    }
+
+    function showModalText() {
+      frameWrap.hidden = true;
+      plain.hidden = false;
+      renderedButton.classList.remove('is-active');
+      textButton.classList.add('is-active');
+      state.mode = 'text';
+    }
+
+    renderedButton.addEventListener('click', renderModalHtml);
+    textButton.addEventListener('click', showModalText);
+
+    if (imageButton) {
+      imageButton.addEventListener('click', function () {
+        state.imagesLoaded = true;
+        imageButton.textContent = 'Images loaded';
+        imageButton.disabled = true;
+        toolbarNote.textContent = 'Remote images enabled for this viewer.';
+        renderModalHtml();
+      });
+    }
+
+    closeButton.addEventListener('click', closeModal);
+    backdrop.addEventListener('mousedown', function (event) {
+      if (event.target === backdrop) closeModal();
+    });
+
+    activeModal = {
+      backdrop: backdrop,
+      restoreFocus: options && options.restoreFocus ? options.restoreFocus : null
+    };
+
+    if (state.mode === 'text') showModalText();
+    else renderModalHtml();
+
+    setTimeout(function () {
+      try { closeButton.focus(); } catch (error) {}
+    }, 0);
+  }
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && activeModal) closeModal();
+  });
+
   function enhanceCard(card, message) {
     if (!card || !message || !message.bodyHtml || card.dataset.emailRendered === '1') return;
 
@@ -289,6 +681,15 @@ const EMAIL_RENDERER_SCRIPT = String.raw`<script id="read-email-renderer-script"
 
     actions.appendChild(renderedButton);
     actions.appendChild(textButton);
+
+    var expandButton = document.createElement('button');
+    expandButton.type = 'button';
+    expandButton.className = 'email-renderer-icon-button';
+    expandButton.setAttribute('aria-label', 'Expand email');
+    expandButton.title = 'Expand email';
+    expandButton.appendChild(makeExpandIcon());
+    actions.appendChild(expandButton);
+
     toolbar.appendChild(label);
     toolbar.appendChild(actions);
 
@@ -316,10 +717,12 @@ const EMAIL_RENDERER_SCRIPT = String.raw`<script id="read-email-renderer-script"
 
     var rendered = false;
     var imagesLoaded = false;
+    var currentMode = 'rendered';
 
     function renderHtml(allowImages) {
       frame.srcdoc = buildEmailDocument(message.bodyHtml, allowImages);
       rendered = true;
+      currentMode = 'rendered';
       frameWrap.hidden = false;
       note.hidden = false;
       plain.style.display = 'none';
@@ -328,6 +731,7 @@ const EMAIL_RENDERER_SCRIPT = String.raw`<script id="read-email-renderer-script"
     }
 
     function showText() {
+      currentMode = 'text';
       frameWrap.hidden = true;
       note.hidden = true;
       plain.style.display = 'block';
@@ -347,6 +751,7 @@ const EMAIL_RENDERER_SCRIPT = String.raw`<script id="read-email-renderer-script"
     renderedButton.addEventListener('click', function () {
       if (!rendered) renderHtml(imagesLoaded);
       else {
+        currentMode = 'rendered';
         frameWrap.hidden = false;
         note.hidden = false;
         plain.style.display = 'none';
@@ -365,6 +770,14 @@ const EMAIL_RENDERER_SCRIPT = String.raw`<script id="read-email-renderer-script"
         renderHtml(true);
       });
     }
+
+    expandButton.addEventListener('click', function () {
+      openModal(message, {
+        imagesLoaded: imagesLoaded,
+        mode: currentMode,
+        restoreFocus: expandButton
+      });
+    });
 
     if (card.open) renderHtml(false);
   }
