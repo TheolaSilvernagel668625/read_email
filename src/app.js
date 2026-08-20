@@ -27,16 +27,273 @@ const UI_LAYOUT_FIX = String.raw`<style id="read-email-layout-fix">
     height: 47px;
     min-height: 47px;
   }
-  .notice {
-    white-space: pre-wrap;
+
+  .notice.is-error {
+    padding: 0;
+    overflow: hidden;
+    white-space: normal;
+  }
+  .error-shell {
+    display: grid;
+    gap: .85rem;
+    padding: 1rem;
+  }
+  .error-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: start;
+  }
+  .error-eyebrow {
+    margin: 0 0 .35rem;
+    color: var(--color-coral-deep);
+    font: 700 .62rem/1 var(--font-label);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+  .error-message {
+    margin: 0;
+    color: var(--color-ink);
+    font-size: .9rem;
+    line-height: 1.5;
     overflow-wrap: anywhere;
   }
+  .error-mark {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border: 1.5px solid var(--color-ink);
+    border-radius: 50%;
+    background: var(--color-pear);
+    font: 800 .8rem/1 var(--font-label);
+  }
+  .error-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .45rem;
+  }
+  .error-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 27px;
+    max-width: 100%;
+    padding: 0 .65rem;
+    border: 1px solid var(--color-rule-strong);
+    border-radius: var(--radius-pill);
+    background: var(--color-paper);
+    color: var(--color-ink-2);
+    font: 600 .6rem/1 var(--font-label);
+    letter-spacing: .04em;
+    overflow-wrap: anywhere;
+  }
+  .error-details {
+    border-top: 1px solid var(--color-rule);
+    padding-top: .75rem;
+  }
+  .error-details > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 34px;
+    cursor: pointer;
+    list-style: none;
+    color: var(--color-ink-2);
+    font: 700 .68rem/1 var(--font-label);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .error-details > summary::-webkit-details-marker { display: none; }
+  .error-details > summary::after {
+    content: "+";
+    font-size: 1rem;
+  }
+  .error-details[open] > summary::after { content: "−"; }
+  .error-detail-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin: .5rem 0;
+  }
+  .error-copy {
+    min-height: 31px;
+    padding: 0 .7rem;
+    border: 1px solid var(--color-rule-strong);
+    border-radius: var(--radius-pill);
+    background: var(--color-paper);
+    color: var(--color-ink);
+    cursor: pointer;
+    font: 700 .62rem/1 var(--font-label);
+  }
+  .error-copy:hover { background: var(--color-paper-2); }
+  .error-raw {
+    margin: 0;
+    max-height: 320px;
+    overflow: auto;
+    padding: .85rem;
+    border: 1px solid var(--color-rule);
+    border-radius: 12px;
+    background: var(--color-paper);
+    color: var(--color-ink-2);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: 500 .68rem/1.55 var(--font-label);
+    scrollbar-width: thin;
+  }
+
   @media (max-width: 620px) {
     .row { grid-template-columns: minmax(0, 1fr); }
+    .error-top { grid-template-columns: minmax(0, 1fr); }
+    .error-mark { display: none; }
+    .error-raw { max-height: 260px; }
   }
 </style>`;
 
-const PAGE_HTML = HOME_HTML.replace("</head>", UI_LAYOUT_FIX + "</head>");
+const ERROR_UI_SCRIPT = String.raw`<script id="read-email-error-ui">
+(function () {
+  function enhanceErrorNotice(notice) {
+    if (!notice || !notice.classList.contains('is-error')) return;
+    if (notice.querySelector('.error-shell')) return;
+
+    var raw = String(notice.textContent || '').trim();
+    if (!raw) return;
+
+    var message = raw;
+    var diagnosticText = '';
+    var diagnostics = null;
+    var marker = raw.indexOf('\n\n{');
+
+    if (marker !== -1) {
+      message = raw.slice(0, marker).trim();
+      diagnosticText = raw.slice(marker + 2).trim();
+      try { diagnostics = JSON.parse(diagnosticText); } catch (error) { diagnostics = null; }
+    }
+
+    notice.textContent = '';
+
+    var shell = document.createElement('div');
+    shell.className = 'error-shell';
+
+    var top = document.createElement('div');
+    top.className = 'error-top';
+
+    var copy = document.createElement('div');
+    var eyebrow = document.createElement('p');
+    eyebrow.className = 'error-eyebrow';
+    eyebrow.textContent = diagnostics && diagnostics.provider ? 'Microsoft request failed' : 'Request failed';
+
+    var body = document.createElement('p');
+    body.className = 'error-message';
+    body.textContent = message;
+
+    copy.appendChild(eyebrow);
+    copy.appendChild(body);
+
+    var mark = document.createElement('span');
+    mark.className = 'error-mark';
+    mark.setAttribute('aria-hidden', 'true');
+    mark.textContent = '!';
+
+    top.appendChild(copy);
+    top.appendChild(mark);
+    shell.appendChild(top);
+
+    if (diagnostics) {
+      var meta = document.createElement('div');
+      meta.className = 'error-meta';
+
+      [
+        diagnostics.code ? 'code · ' + diagnostics.code : '',
+        diagnostics.provider ? 'provider · ' + diagnostics.provider : '',
+        diagnostics.providerStatus ? 'HTTP · ' + diagnostics.providerStatus : ''
+      ].filter(Boolean).forEach(function (text) {
+        var chip = document.createElement('span');
+        chip.className = 'error-chip';
+        chip.textContent = text;
+        meta.appendChild(chip);
+      });
+
+      if (meta.childNodes.length) shell.appendChild(meta);
+    }
+
+    if (diagnosticText) {
+      var details = document.createElement('details');
+      details.className = 'error-details';
+
+      var summary = document.createElement('summary');
+      summary.textContent = 'Technical details';
+
+      var actions = document.createElement('div');
+      actions.className = 'error-detail-actions';
+
+      var copyButton = document.createElement('button');
+      copyButton.type = 'button';
+      copyButton.className = 'error-copy';
+      copyButton.textContent = 'Copy diagnostics';
+      copyButton.addEventListener('click', async function () {
+        try {
+          await navigator.clipboard.writeText(raw);
+          copyButton.textContent = 'Copied';
+          setTimeout(function () { copyButton.textContent = 'Copy diagnostics'; }, 1400);
+        } catch (error) {
+          copyButton.textContent = 'Copy failed';
+          setTimeout(function () { copyButton.textContent = 'Copy diagnostics'; }, 1400);
+        }
+      });
+
+      var pre = document.createElement('pre');
+      pre.className = 'error-raw';
+      if (diagnostics) {
+        pre.textContent = JSON.stringify(diagnostics, null, 2);
+      } else {
+        pre.textContent = diagnosticText;
+      }
+
+      actions.appendChild(copyButton);
+      details.appendChild(summary);
+      details.appendChild(actions);
+      details.appendChild(pre);
+      shell.appendChild(details);
+    }
+
+    notice.appendChild(shell);
+  }
+
+  function install() {
+    var account = document.getElementById('account');
+    if (account) account.removeAttribute('required');
+
+    var notice = document.getElementById('notice');
+    if (!notice) return;
+
+    var observer = new MutationObserver(function () {
+      if (notice.classList.contains('is-error')) {
+        enhanceErrorNotice(notice);
+      }
+    });
+
+    observer.observe(notice, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['class']
+    });
+
+    enhanceErrorNotice(notice);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', install, { once: true });
+  } else {
+    install();
+  }
+})();
+</script>`;
+
+const PAGE_HTML = HOME_HTML
+  .replace("</head>", UI_LAYOUT_FIX + "</head>")
+  .replace("</body>", ERROR_UI_SCRIPT + "</body>");
 
 function apiKeyMiddleware(req, res, next) {
   const configured = process.env.READER_API_KEY;
