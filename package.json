@@ -9,7 +9,7 @@
     "check": "node --check server.js && node --check api/index.js && node --check src/app.js && node --check src/mail.js"
   },
   "engines": {
-    "node": "22.x"
+    "node": "24.x"
   },
   "dependencies": {
     "express": "^5.1.0",
