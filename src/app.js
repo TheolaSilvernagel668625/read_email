@@ -27,6 +27,10 @@ const UI_LAYOUT_FIX = String.raw`<style id="read-email-layout-fix">
     height: 47px;
     min-height: 47px;
   }
+  .notice {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
   @media (max-width: 620px) {
     .row { grid-template-columns: minmax(0, 1fr); }
   }
@@ -59,6 +63,40 @@ function getAccountLine(req) {
   return "";
 }
 
+function buildErrorResponse(error) {
+  const message = error && error.message ? error.message : "Mailbox read failed.";
+  const diagnostics = {};
+
+  if (error && error.code) diagnostics.code = error.code;
+  if (error && error.provider) diagnostics.provider = error.provider;
+  if (error && Number.isInteger(error.providerStatus)) diagnostics.providerStatus = error.providerStatus;
+  if (error && error.providerDetails) diagnostics.details = error.providerDetails;
+
+  const hasDiagnostics = Object.keys(diagnostics).length > 0;
+  const fullMessage = hasDiagnostics
+    ? `${message}\n\n${JSON.stringify(diagnostics, null, 2)}`
+    : message;
+
+  return {
+    ok: false,
+    error: fullMessage,
+    message,
+    ...diagnostics
+  };
+}
+
+function responseStatusForError(error) {
+  if (error && ["INVALID_ACCOUNT_FORMAT", "INVALID_EMAIL"].includes(error.code)) {
+    return 400;
+  }
+
+  if (error && Number.isInteger(error.providerStatus) && error.providerStatus >= 400 && error.providerStatus <= 599) {
+    return error.providerStatus;
+  }
+
+  return 502;
+}
+
 app.get("/", (req, res) => {
   res.set("Cache-Control", "no-store");
   res.type("html").send(PAGE_HTML);
@@ -89,9 +127,9 @@ app.post("/api/read", apiKeyMiddleware, async (req, res) => {
     const messages = await readMailbox(account, { backend: requestedBackend, limit });
     return res.json({ ok: true, email: account.email, backend: requestedBackend, count: messages.length, messages });
   } catch (error) {
-    console.error("read_email error:", error && error.message ? error.message : error);
-    const status = error && ["INVALID_ACCOUNT_FORMAT", "INVALID_EMAIL"].includes(error.code) ? 400 : 502;
-    return res.status(status).json({ ok: false, error: error && error.message ? error.message : "Mailbox read failed." });
+    const payload = buildErrorResponse(error);
+    console.error("read_email error:", JSON.stringify(payload));
+    return res.status(responseStatusForError(error)).json(payload);
   }
 });
 
