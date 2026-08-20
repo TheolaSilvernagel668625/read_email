@@ -7,16 +7,11 @@ app.disable("x-powered-by");
 app.use(express.json({ limit: "64kb" }));
 app.use(express.text({ type: "text/plain", limit: "64kb" }));
 
-function deploymentNeedsApiKey() {
-  return Boolean(process.env.VERCEL || process.env.DYNO || process.env.NODE_ENV === "production");
-}
-
 function apiKeyMiddleware(req, res, next) {
   const configured = process.env.READER_API_KEY;
+
+  // READER_API_KEY is optional. If it is not configured, allow requests.
   if (!configured) {
-    if (deploymentNeedsApiKey()) {
-      return res.status(503).json({ ok: false, error: "READER_API_KEY is not configured on this deployment." });
-    }
     return next();
   }
 
@@ -24,6 +19,7 @@ function apiKeyMiddleware(req, res, next) {
   if (supplied !== configured) {
     return res.status(401).json({ ok: false, error: "Invalid or missing x-api-key." });
   }
+
   next();
 }
 
