@@ -12,6 +12,89 @@ function makeError(message, code) {
   return error;
 }
 
+function redactText(value, secrets = []) {
+  let output = String(value ?? "");
+  for (const secret of secrets) {
+    if (typeof secret === "string" && secret.length >= 8) {
+      output = output.split(secret).join("[REDACTED]");
+    }
+  }
+  return output;
+}
+
+function redactValue(value, secrets = [], depth = 0) {
+  if (depth > 8) return "[MAX_DEPTH]";
+  if (typeof value === "string") return redactText(value, secrets);
+  if (value === null || value === undefined || typeof value === "number" || typeof value === "boolean") return value;
+  if (Array.isArray(value)) return value.map((item) => redactValue(item, secrets, depth + 1));
+  if (typeof value === "object") {
+    const output = {};
+    for (const [key, item] of Object.entries(value)) {
+      if (/password|refresh.?token|access.?token|authorization/i.test(key)) {
+        output[key] = "[REDACTED]";
+      } else {
+        output[key] = redactValue(item, secrets, depth + 1);
+      }
+    }
+    return output;
+  }
+  return String(value);
+}
+
+function headersToObject(headers) {
+  try {
+    return Object.fromEntries(headers.entries());
+  } catch {
+    return {};
+  }
+}
+
+function makeProviderError(message, options = {}) {
+  const error = new Error(message);
+  error.code = options.code || "PROVIDER_ERROR";
+  error.provider = options.provider || "microsoft";
+  error.providerStatus = Number.isInteger(options.status) ? options.status : null;
+  error.providerDetails = options.details || null;
+  return error;
+}
+
+function safeErrorDetails(error, secrets = []) {
+  const details = {
+    name: error && error.name ? String(error.name) : "Error",
+    message: redactText(error && error.message ? error.message : String(error), secrets)
+  };
+
+  const preferredKeys = [
+    "code",
+    "responseStatus",
+    "responseText",
+    "serverResponseCode",
+    "authenticationFailed",
+    "command",
+    "response",
+    "statusCode"
+  ];
+
+  for (const key of preferredKeys) {
+    if (error && error[key] !== undefined) {
+      details[key] = redactValue(error[key], secrets);
+    }
+  }
+
+  if (error && typeof error === "object") {
+    for (const [key, value] of Object.entries(error)) {
+      if (key === "stack" || key in details) continue;
+      if (/password|refresh.?token|access.?token|authorization|auth/i.test(key)) {
+        details[key] = "[REDACTED]";
+      } else {
+        details[key] = redactValue(value, secrets);
+      }
+    }
+  }
+
+  return details;
+}
+
 function parseAccount(line) {
   const parts = String(line || "").trim().split("|");
   if (parts.length !== 4) {
@@ -26,6 +109,25 @@ function parseAccount(line) {
   return { email, password, refreshToken, clientId };
 }
 
+async function readResponse(response, secrets = []) {
+  const rawBody = await response.text();
+  let payload = null;
+
+  if (rawBody) {
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      payload = null;
+    }
+  }
+
+  return {
+    rawBody: redactText(rawBody, secrets),
+    payload: redactValue(payload, secrets),
+    headers: redactValue(headersToObject(response.headers), secrets)
+  };
+}
+
 async function getAccessToken(account, scope) {
   const tokenEndpoint = process.env.MS_TOKEN_ENDPOINT || DEFAULT_TOKEN_ENDPOINT;
   const body = new URLSearchParams({
@@ -35,27 +137,70 @@ async function getAccessToken(account, scope) {
     scope
   });
 
-  const response = await fetch(tokenEndpoint, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body,
-    signal: AbortSignal.timeout(30000)
-  });
-
-  let payload;
+  let response;
   try {
-    payload = await response.json();
-  } catch {
-    throw new Error(`Microsoft token endpoint returned HTTP ${response.status}.`);
+    response = await fetch(tokenEndpoint, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body,
+      signal: AbortSignal.timeout(30000)
+    });
+  } catch (error) {
+    const isTimeout = error && (error.name === "TimeoutError" || error.name === "AbortError");
+    throw makeProviderError(
+      isTimeout ? "Microsoft token request timed out." : "Microsoft token request failed before a response was received.",
+      {
+        provider: "microsoft_token",
+        code: isTimeout ? "MICROSOFT_TOKEN_TIMEOUT" : "MICROSOFT_TOKEN_NETWORK_ERROR",
+        details: {
+          endpoint: tokenEndpoint,
+          scope,
+          cause: safeErrorDetails(error, [account.refreshToken])
+        }
+      }
+    );
   }
+
+  const responseData = await readResponse(response, [account.refreshToken]);
 
   if (!response.ok) {
+    const payload = responseData.payload || {};
     const errorName = payload.error || "token_error";
-    const description = payload.error_description || "Token exchange failed.";
-    throw new Error(`${errorName}: ${description}`);
+    const description = payload.error_description || responseData.rawBody || "Token exchange failed.";
+
+    throw makeProviderError(`${errorName}: ${description}`, {
+      provider: "microsoft_token",
+      code: errorName,
+      status: response.status,
+      details: {
+        endpoint: tokenEndpoint,
+        scope,
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseData.headers,
+        payload: responseData.payload,
+        rawBody: responseData.rawBody
+      }
+    });
   }
 
-  if (!payload.access_token) throw new Error("Microsoft token response did not include access_token.");
+  const payload = responseData.payload || {};
+  if (!payload.access_token) {
+    throw makeProviderError("Microsoft token response did not include access_token.", {
+      provider: "microsoft_token",
+      code: "TOKEN_RESPONSE_MISSING_ACCESS_TOKEN",
+      status: response.status,
+      details: {
+        endpoint: tokenEndpoint,
+        scope,
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseData.headers,
+        payload: redactValue(payload, [account.refreshToken])
+      }
+    });
+  }
+
   return payload.access_token;
 }
 
@@ -100,7 +245,11 @@ async function readImap(account, limit) {
     for (const row of rows.reverse()) {
       let parsed = null;
       if (row.source) {
-        try { parsed = await simpleParser(row.source); } catch { parsed = null; }
+        try {
+          parsed = await simpleParser(row.source);
+        } catch {
+          parsed = null;
+        }
       }
 
       const envelope = row.envelope || {};
@@ -126,10 +275,28 @@ async function readImap(account, limit) {
     }
 
     return results;
+  } catch (error) {
+    if (error && error.provider) throw error;
+
+    throw makeProviderError(error && error.message ? error.message : "Microsoft IMAP request failed.", {
+      provider: "microsoft_imap",
+      code: (error && error.code) || "IMAP_ERROR",
+      status: error && Number.isInteger(error.responseStatus) ? error.responseStatus : null,
+      details: {
+        host: "outlook.office365.com",
+        port: 993,
+        mailbox: "INBOX",
+        error: safeErrorDetails(error, [account.refreshToken, accessToken])
+      }
+    });
   } finally {
     if (lock) lock.release();
     if (client.usable) {
-      try { await client.logout(); } catch { client.close(); }
+      try {
+        await client.logout();
+      } catch {
+        client.close();
+      }
     } else {
       client.close();
     }
@@ -143,23 +310,53 @@ async function readGraph(account, limit) {
   url.searchParams.set("$orderby", "receivedDateTime desc");
   url.searchParams.set("$select", "id,subject,from,toRecipients,receivedDateTime,isRead,body,bodyPreview");
 
-  const response = await fetch(url, {
-    headers: {
-      authorization: `Bearer ${accessToken}`,
-      prefer: 'outlook.body-content-type="text"'
-    },
-    signal: AbortSignal.timeout(30000)
-  });
-
-  let payload;
-  try { payload = await response.json(); }
-  catch { throw new Error(`Microsoft Graph returned HTTP ${response.status}.`); }
-
-  if (!response.ok) {
-    const detail = payload.error || {};
-    throw new Error(`Microsoft Graph ${response.status}: ${detail.message || "Mailbox read failed."}`);
+  let response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        prefer: 'outlook.body-content-type="text"'
+      },
+      signal: AbortSignal.timeout(30000)
+    });
+  } catch (error) {
+    const isTimeout = error && (error.name === "TimeoutError" || error.name === "AbortError");
+    throw makeProviderError(
+      isTimeout ? "Microsoft Graph request timed out." : "Microsoft Graph request failed before a response was received.",
+      {
+        provider: "microsoft_graph",
+        code: isTimeout ? "MICROSOFT_GRAPH_TIMEOUT" : "MICROSOFT_GRAPH_NETWORK_ERROR",
+        details: {
+          endpoint: url.toString(),
+          cause: safeErrorDetails(error, [account.refreshToken, accessToken])
+        }
+      }
+    );
   }
 
+  const responseData = await readResponse(response, [account.refreshToken, accessToken]);
+
+  if (!response.ok) {
+    const detail = responseData.payload && responseData.payload.error ? responseData.payload.error : {};
+    const code = detail.code || `GRAPH_HTTP_${response.status}`;
+    const message = detail.message || responseData.rawBody || "Mailbox read failed.";
+
+    throw makeProviderError(`Microsoft Graph ${response.status}: ${message}`, {
+      provider: "microsoft_graph",
+      code,
+      status: response.status,
+      details: {
+        endpoint: url.toString(),
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseData.headers,
+        payload: responseData.payload,
+        rawBody: responseData.rawBody
+      }
+    });
+  }
+
+  const payload = responseData.payload || {};
   return (payload.value || []).map((item) => ({
     id: item.id || "",
     subject: item.subject || "",
@@ -177,4 +374,10 @@ async function readMailbox(account, options = {}) {
   return backend === "graph" ? readGraph(account, limit) : readImap(account, limit);
 }
 
-module.exports = { parseAccount, getAccessToken, readMailbox, readImap, readGraph };
+module.exports = {
+  parseAccount,
+  getAccessToken,
+  readMailbox,
+  readImap,
+  readGraph
+};
