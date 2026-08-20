@@ -1,0 +1,19 @@
+{
+  "name": "read-email",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Read an authorized Outlook/Hotmail mailbox from email|password|refresh_token|client_id using OAuth.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check api/index.js && node --check src/app.js && node --check src/mail.js"
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "imapflow": "^1.0.0",
+    "mailparser": "^3.7.0"
+  }
+}
