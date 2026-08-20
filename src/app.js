@@ -1,6 +1,7 @@
 const express = require("express");
 const HOME_HTML = require("./ui");
 const { ENHANCEMENT_STYLE, ENHANCEMENT_SCRIPT } = require("./enhancements");
+const { EMAIL_RENDERER_STYLE, EMAIL_RENDERER_SCRIPT } = require("./email-renderer");
 const { parseAccount, readMailbox } = require("./mail");
 
 const app = express();
@@ -77,8 +78,14 @@ const LOADING_LAYOUT_FIX = String.raw`<style id="read-email-loading-layout-fix">
 </style>`;
 
 const PAGE_HTML = HOME_HTML
-  .replace("</head>", ENHANCEMENT_STYLE + LOADING_LAYOUT_FIX + "</head>")
-  .replace("</body>", ENHANCEMENT_SCRIPT + "</body>");
+  .replace(
+    "</head>",
+    ENHANCEMENT_STYLE + LOADING_LAYOUT_FIX + EMAIL_RENDERER_STYLE + "</head>"
+  )
+  .replace(
+    "</body>",
+    ENHANCEMENT_SCRIPT + EMAIL_RENDERER_SCRIPT + "</body>"
+  );
 
 function apiKeyMiddleware(req, res, next) {
   const configured = process.env.READER_API_KEY;
