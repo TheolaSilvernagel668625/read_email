@@ -20,6 +20,60 @@ const LOADING_LAYOUT_FIX = String.raw`<style id="read-email-loading-layout-fix">
     height: 90px;
     min-height: 90px;
   }
+
+  /* Center the Auto fetch switch thumb precisely inside its track. */
+  .auto-switch {
+    position: relative;
+    flex: 0 0 auto;
+    width: 58px;
+    height: 34px;
+    display: inline-grid;
+    place-items: center;
+    line-height: 0;
+  }
+  .auto-switch input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .auto-switch-track {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    box-sizing: border-box;
+    border: 2px solid var(--color-rule-strong);
+    border-radius: 999px;
+    background: var(--color-paper);
+    transition: background-color 150ms, border-color 150ms;
+  }
+  .auto-switch-track::after {
+    content: "";
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    left: 3px;
+    top: 50%;
+    box-sizing: border-box;
+    border: 2px solid var(--color-ink);
+    border-radius: 50%;
+    background: var(--color-white);
+    transform: translateY(-50%);
+    transition: transform 160ms var(--ease-out), background-color 150ms;
+  }
+  .auto-switch input:checked + .auto-switch-track {
+    border-color: var(--color-mint-deep);
+    background: var(--color-mint);
+  }
+  .auto-switch input:checked + .auto-switch-track::after {
+    transform: translate(24px, -50%);
+  }
+  .auto-switch input:focus-visible + .auto-switch-track {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 3px;
+  }
 </style>`;
 
 const PAGE_HTML = HOME_HTML
