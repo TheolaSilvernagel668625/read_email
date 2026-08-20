@@ -1,4 +1,5 @@
 const express = require("express");
+const HOME_HTML = require("./ui");
 const { parseAccount, readMailbox } = require("./mail");
 
 const app = express();
@@ -36,13 +37,8 @@ function getAccountLine(req) {
 }
 
 app.get("/", (req, res) => {
-  res.json({
-    ok: true,
-    service: "read_email",
-    input: "email|password|refresh_token|client_id",
-    passwordFieldUsed: false,
-    endpoints: { health: "GET /health", read: "POST /api/read" }
-  });
+  res.set("Cache-Control", "no-store");
+  res.type("html").send(HOME_HTML);
 });
 
 app.get("/health", (req, res) => {
