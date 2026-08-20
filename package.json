@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check api/index.js && node --check src/app.js && node --check src/mail.js"
+    "check": "node --check server.js && node --check api/index.js && node --check src/app.js && node --check src/mail.js && node --check src/enhancements.js && node --check src/email-renderer.js"
   },
   "engines": {
     "node": "24.x"
