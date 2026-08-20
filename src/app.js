@@ -8,8 +8,22 @@ app.disable("x-powered-by");
 app.use(express.json({ limit: "64kb" }));
 app.use(express.text({ type: "text/plain", limit: "64kb" }));
 
+const LOADING_LAYOUT_FIX = String.raw`<style id="read-email-loading-layout-fix">
+  /* Keep skeleton rows compact inside the fixed-height Inbox scroller. */
+  .panel--inbox #results > .loading {
+    min-height: 100% !important;
+    align-content: start;
+    grid-auto-rows: max-content;
+    gap: .7rem;
+  }
+  .panel--inbox #results > .loading > .skeleton {
+    height: 90px;
+    min-height: 90px;
+  }
+</style>`;
+
 const PAGE_HTML = HOME_HTML
-  .replace("</head>", ENHANCEMENT_STYLE + "</head>")
+  .replace("</head>", ENHANCEMENT_STYLE + LOADING_LAYOUT_FIX + "</head>")
   .replace("</body>", ENHANCEMENT_SCRIPT + "</body>");
 
 function apiKeyMiddleware(req, res, next) {
