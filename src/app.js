@@ -7,6 +7,33 @@ app.disable("x-powered-by");
 app.use(express.json({ limit: "64kb" }));
 app.use(express.text({ type: "text/plain", limit: "64kb" }));
 
+const UI_LAYOUT_FIX = String.raw`<style id="read-email-layout-fix">
+  .row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .row > .field {
+    min-width: 0;
+    margin-bottom: 1rem;
+  }
+  .row .field-label {
+    min-height: 22px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: .75rem;
+  }
+  .row select {
+    height: 47px;
+    min-height: 47px;
+  }
+  @media (max-width: 620px) {
+    .row { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>`;
+
+const PAGE_HTML = HOME_HTML.replace("</head>", UI_LAYOUT_FIX + "</head>");
+
 function apiKeyMiddleware(req, res, next) {
   const configured = process.env.READER_API_KEY;
 
@@ -34,7 +61,7 @@ function getAccountLine(req) {
 
 app.get("/", (req, res) => {
   res.set("Cache-Control", "no-store");
-  res.type("html").send(HOME_HTML);
+  res.type("html").send(PAGE_HTML);
 });
 
 app.get("/health", (req, res) => {
