@@ -1,561 +1,692 @@
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 */
 const HOME_HTML = String.raw`<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="color-scheme" content="dark" />
-  <title>read_email · Outlook mailbox reader</title>
+  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#fbf7e9" />
+  <title>read_email · mailbox workbench</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #070b14;
-      --panel: rgba(15, 23, 42, 0.72);
-      --line: rgba(148, 163, 184, 0.18);
-      --text: #eef2ff;
-      --muted: #94a3b8;
-      --accent: #8b5cf6;
-      --accent-2: #22d3ee;
-      --good: #34d399;
-      --danger: #fb7185;
-      --shadow: 0 30px 90px rgba(0, 0, 0, 0.42);
-      --radius: 24px;
+      --color-paper: oklch(97% 0.012 95);
+      --color-paper-2: oklch(94% 0.016 95);
+      --color-paper-3: oklch(91% 0.020 95);
+      --color-ink: oklch(20% 0.012 250);
+      --color-ink-2: oklch(31% 0.014 250);
+      --color-muted: oklch(50% 0.014 90);
+      --color-rule: oklch(84% 0.014 90);
+      --color-rule-strong: oklch(70% 0.018 85);
+      --color-pear: oklch(86% 0.18 95);
+      --color-pear-deep: oklch(76% 0.20 95);
+      --color-cyan: oklch(66% 0.18 235);
+      --color-cyan-deep: oklch(56% 0.20 235);
+      --color-coral: oklch(68% 0.24 18);
+      --color-coral-deep: oklch(58% 0.26 18);
+      --color-mint: oklch(80% 0.16 150);
+      --color-mint-deep: oklch(70% 0.18 150);
+      --color-lavender: oklch(74% 0.16 305);
+      --color-focus: oklch(56% 0.20 235);
+      --color-white: oklch(100% 0 0);
+      --color-quiet: oklch(98% 0.006 95);
+      --color-shadow: oklch(20% 0.012 250 / 0.13);
+      --color-shadow-soft: oklch(20% 0.012 250 / 0.07);
+      --color-cyan-soft: oklch(66% 0.18 235 / 0.09);
+      --color-pear-soft: oklch(86% 0.18 95 / 0.16);
+      --color-mint-soft: oklch(80% 0.16 150 / 0.16);
+      --color-coral-soft: oklch(68% 0.24 18 / 0.08);
+      --font-display: "Plus Jakarta Sans", "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
+      --font-body: "Plus Jakarta Sans", "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
+      --font-label: "JetBrains Mono", "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+      --radius-panel: 22px;
+      --radius-input: 13px;
+      --radius-pill: 999px;
+      --page-max: 78rem;
+      --page-gutter: clamp(1rem, 4vw, 3rem);
+      --shadow-card: 0 16px 42px -28px var(--color-shadow), 0 2px 5px var(--color-shadow-soft);
+      --shadow-card-hover: 0 22px 54px -30px var(--color-shadow), 0 4px 8px var(--color-shadow-soft);
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     }
+
     * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; overflow-x: clip; background: var(--color-paper); color: var(--color-ink); }
     html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: var(--text);
-      background:
-        radial-gradient(circle at 10% 0%, rgba(124, 58, 237, 0.22), transparent 34rem),
-        radial-gradient(circle at 100% 14%, rgba(6, 182, 212, 0.15), transparent 30rem),
-        linear-gradient(180deg, #080c16 0%, #05070d 100%);
-      overflow-x: hidden;
+    body { font-family: var(--font-body); font-size: 16px; line-height: 1.55; }
+    button, input, textarea, select { font: inherit; }
+    button { color: inherit; }
+    a { color: inherit; }
+    ::selection { background: var(--color-pear); color: var(--color-ink); }
+
+    .skip {
+      position: fixed; left: 1rem; top: -5rem; z-index: 100;
+      background: var(--color-ink); color: var(--color-paper); padding: .7rem 1rem;
+      border-radius: var(--radius-pill); font: 600 .75rem/1 var(--font-label);
     }
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      opacity: 0.18;
-      background-image:
-        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
-      background-size: 34px 34px;
-      mask-image: linear-gradient(to bottom, black, transparent 78%);
+    .skip:focus { top: 1rem; }
+
+    .nav-wrap {
+      min-height: 78px;
+      border-bottom: 1px solid var(--color-rule);
+      background: var(--color-paper);
     }
-    .shell {
-      width: min(1160px, calc(100% - 32px));
-      margin: 0 auto;
-      padding: 34px 0 70px;
-      position: relative;
-      z-index: 1;
+    .nav {
+      width: min(calc(100% - (var(--page-gutter) * 2)), var(--page-max));
+      min-height: 78px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between; gap: 1.5rem;
+      transition: min-height 180ms var(--ease-out), width 180ms var(--ease-out), border-color 180ms var(--ease-out), box-shadow 180ms var(--ease-out), background-color 180ms var(--ease-out), border-radius 180ms var(--ease-out), padding 180ms var(--ease-out);
     }
-    .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 42px;
+    .brand { display: inline-flex; align-items: center; gap: .7rem; text-decoration: none; font-weight: 700; letter-spacing: -.025em; white-space: nowrap; }
+    .brand-mark {
+      width: 25px; height: 30px; position: relative; flex: 0 0 auto;
+      border: 2.5px solid var(--color-ink); border-radius: 8px; background: var(--color-quiet);
+      box-shadow: inset 0 -10px 0 var(--color-pear);
     }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      color: var(--text);
-      text-decoration: none;
-      font-weight: 800;
-      letter-spacing: -0.03em;
+    .brand-mark::before {
+      content: ""; position: absolute; left: 5px; right: 5px; top: -7px; height: 5px;
+      border-radius: 3px 3px 0 0; background: var(--color-pear-deep); border: 2px solid var(--color-ink); border-bottom: 0;
     }
-    .logo {
-      width: 42px;
-      height: 42px;
-      border-radius: 14px;
-      display: grid;
-      place-items: center;
-      background: linear-gradient(135deg, var(--accent), #5b21b6 52%, var(--accent-2));
-      box-shadow: 0 12px 30px rgba(124, 58, 237, 0.35);
-      font-size: 20px;
+    .nav-meta { display: flex; align-items: center; gap: .75rem; }
+    .nav-status {
+      display: inline-flex; align-items: center; gap: .5rem; white-space: nowrap;
+      font: 600 .67rem/1 var(--font-label); letter-spacing: .08em; text-transform: uppercase;
     }
-    .status-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 9px 13px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: rgba(15, 23, 42, 0.58);
-      color: #cbd5e1;
-      font-size: 13px;
-      backdrop-filter: blur(18px);
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-mint); box-shadow: 0 0 0 3px var(--color-mint-soft); }
+    .nav-link {
+      display: inline-flex; align-items: center; min-height: 38px; padding: 0 .9rem;
+      border: 1px solid var(--color-rule); border-radius: var(--radius-pill); text-decoration: none;
+      font-size: .85rem; font-weight: 600; white-space: nowrap;
+      transition: background-color 160ms, border-color 160ms, transform 160ms var(--ease-out);
     }
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: var(--good);
-      box-shadow: 0 0 0 5px rgba(52, 211, 153, 0.1);
+    .nav-link:hover { background: var(--color-paper-2); border-color: var(--color-rule-strong); transform: translateY(-1px); }
+
+    .page { width: min(calc(100% - (var(--page-gutter) * 2)), var(--page-max)); margin: 0 auto; padding: 4.2rem 0 5rem; }
+
+    .intro { max-width: 72rem; margin-bottom: 2.6rem; }
+    .steps { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; margin: 0 0 2rem; }
+    .step {
+      display: inline-flex; align-items: center; gap: .45rem; min-height: 31px;
+      padding: 0 .75rem; border: 1px solid var(--color-rule); border-radius: var(--radius-pill);
+      background: var(--color-paper-2); font: 600 .65rem/1 var(--font-label); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap;
     }
-    .hero { max-width: 820px; margin-bottom: 30px; }
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 14px;
-      color: #c4b5fd;
-      text-transform: uppercase;
-      font-size: 12px;
-      letter-spacing: 0.14em;
-      font-weight: 800;
-    }
+    .step::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--step-color, var(--color-mint)); }
+    .step:nth-child(2) { --step-color: var(--color-cyan); }
+    .step:nth-child(3) { --step-color: var(--color-pear); }
+    .step-line { width: 24px; height: 1px; background: var(--color-rule-strong); }
+
     h1 {
-      margin: 0;
-      max-width: 760px;
-      font-size: clamp(42px, 8vw, 82px);
-      line-height: 0.98;
-      letter-spacing: -0.065em;
-      background: linear-gradient(180deg, #ffffff 10%, #d7dcff 70%, #a5b4fc 100%);
-      -webkit-background-clip: text;
-      color: transparent;
+      max-width: 820px; margin: 0; font-family: var(--font-display); font-size: clamp(2.8rem, 6vw, 5.7rem);
+      line-height: .98; letter-spacing: -.05em; font-weight: 600; font-style: normal; overflow-wrap: anywhere; min-width: 0;
     }
-    .hero p {
-      margin: 22px 0 0;
-      max-width: 680px;
-      color: var(--muted);
-      font-size: 17px;
-      line-height: 1.7;
+    .underline { position: relative; display: inline-block; z-index: 0; }
+    .underline::after {
+      content: ""; position: absolute; left: 0; right: 0; bottom: .06em; height: .14em; z-index: -1;
+      background: var(--color-mint); transform: rotate(-1deg); border-radius: 999px;
     }
-    .layout {
-      display: grid;
-      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-      gap: 20px;
-      align-items: start;
+    .lede { max-width: 650px; margin: 1.45rem 0 0; color: var(--color-ink-2); font-size: clamp(1rem, 1.6vw, 1.16rem); }
+    .microcopy { margin: 1rem 0 0; color: var(--color-muted); font: 500 .66rem/1.55 var(--font-label); text-transform: uppercase; letter-spacing: .1em; }
+
+    .workbench {
+      display: grid; grid-template-columns: minmax(0, .88fr) minmax(0, 1.45fr); gap: 1.25rem; align-items: start;
     }
-    .card {
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--panel);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(22px);
-      overflow: hidden;
+    .panel {
+      min-width: 0; border: 1.5px solid var(--color-rule); border-radius: var(--radius-panel);
+      background: var(--color-quiet); box-shadow: var(--shadow-card); overflow: hidden;
     }
-    .card-header {
-      padding: 24px 24px 0;
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
+    .panel--setup { position: sticky; top: 1rem; }
+    .panel-head {
+      min-height: 66px; padding: 1rem 1.15rem; border-bottom: 1px solid var(--color-rule);
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
     }
-    .card-title { margin: 0; font-size: 18px; letter-spacing: -0.025em; }
-    .card-subtitle { margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
-    form { padding: 22px 24px 24px; }
-    .field { margin-bottom: 17px; }
-    label {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 8px;
-      color: #dbeafe;
-      font-size: 13px;
-      font-weight: 700;
+    .panel-kicker { margin: 0 0 .25rem; color: var(--color-muted); font: 600 .62rem/1 var(--font-label); letter-spacing: .12em; text-transform: uppercase; }
+    .panel-title { margin: 0; font-size: 1.08rem; line-height: 1.15; letter-spacing: -.02em; font-weight: 700; font-style: normal; }
+    .panel-chip {
+      display: inline-flex; align-items: center; min-height: 28px; padding: 0 .65rem; border-radius: var(--radius-pill);
+      background: var(--color-pear-soft); border: 1px solid var(--color-pear-deep); font: 600 .62rem/1 var(--font-label); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap;
     }
-    .hint { color: #64748b; font-size: 11px; font-weight: 600; }
-    textarea, input, select {
-      width: 100%;
-      border: 1px solid rgba(148, 163, 184, 0.2);
-      border-radius: 14px;
-      outline: none;
-      background: rgba(2, 6, 23, 0.72);
-      color: #f8fafc;
-      font: inherit;
-      transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+    .panel-body { padding: 1.15rem; }
+
+    .field { display: grid; gap: .5rem; margin-bottom: 1rem; }
+    .field:last-child { margin-bottom: 0; }
+    .field-label { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; font-size: .83rem; font-weight: 700; }
+    .field-label small { color: var(--color-muted); font: 500 .6rem/1 var(--font-label); letter-spacing: .06em; text-transform: uppercase; }
+    .account-wrap { position: relative; }
+    .account-wrap::before {
+      content: "01"; position: absolute; right: .8rem; top: .75rem; z-index: 2;
+      color: var(--color-muted); font: 600 .6rem/1 var(--font-label); letter-spacing: .08em;
     }
-    textarea:focus, input:focus, select:focus {
-      border-color: rgba(139, 92, 246, 0.72);
-      box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.12);
+    textarea, input[type="password"], select {
+      width: 100%; border: 1.5px solid var(--color-rule-strong); border-radius: var(--radius-input);
+      background: var(--color-paper); color: var(--color-ink); outline: 0;
+      transition: border-color 140ms, box-shadow 140ms, background-color 140ms;
     }
-    textarea {
-      min-height: 128px;
-      padding: 14px 15px;
-      resize: vertical;
-      line-height: 1.55;
-      word-break: break-all;
+    textarea { min-height: 116px; resize: vertical; padding: .95rem 2.4rem .95rem .95rem; font: 500 .78rem/1.55 var(--font-label); overflow-wrap: anywhere; }
+    input[type="password"], select { min-height: 47px; padding: 0 .85rem; }
+    textarea:focus, input[type="password"]:focus, select:focus { border-color: var(--color-cyan-deep); box-shadow: 0 0 0 4px var(--color-cyan-soft); background: var(--color-white); }
+    textarea::placeholder, input::placeholder { color: var(--color-muted); opacity: .72; }
+
+    .radio-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+    .radio { position: relative; min-width: 0; }
+    .radio input { position: absolute; opacity: 0; pointer-events: none; }
+    .radio label {
+      display: block; min-height: 78px; padding: .8rem; cursor: pointer;
+      border: 1.5px solid var(--color-rule); border-radius: 15px; background: var(--color-paper);
+      transition: transform 150ms var(--ease-out), border-color 150ms, background-color 150ms, box-shadow 150ms;
     }
-    input, select { padding: 12px 14px; }
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .actions { display: flex; gap: 10px; margin-top: 22px; }
-    button { border: 0; cursor: pointer; font: inherit; }
-    .primary {
-      flex: 1;
-      min-height: 48px;
-      border-radius: 14px;
-      padding: 0 18px;
-      font-weight: 800;
-      color: white;
-      background: linear-gradient(135deg, #7c3aed, #6366f1 54%, #0891b2);
-      box-shadow: 0 15px 34px rgba(79, 70, 229, 0.25);
-      transition: transform .18s ease, filter .18s ease, opacity .18s ease;
-    }
-    .primary:hover { transform: translateY(-1px); filter: brightness(1.08); }
-    .primary:disabled { cursor: wait; opacity: .6; transform: none; }
-    .secondary {
-      min-width: 86px;
-      border-radius: 14px;
-      color: #cbd5e1;
-      background: rgba(30, 41, 59, 0.78);
-      border: 1px solid var(--line);
-    }
-    .security {
-      margin-top: 14px;
-      display: flex;
-      gap: 10px;
-      color: #94a3b8;
-      font-size: 12px;
-      line-height: 1.55;
-    }
-    .security svg { flex: 0 0 auto; margin-top: 2px; }
-    .results-card { min-height: 548px; }
-    .results-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      padding: 20px 22px;
-      border-bottom: 1px solid var(--line);
-    }
-    .result-title-wrap { min-width: 0; }
-    .result-title {
-      margin: 0;
-      font-size: 16px;
+    .radio label:hover { transform: translateY(-2px); border-color: var(--color-cyan-deep); box-shadow: var(--shadow-card); }
+    .radio input:checked + label { border-color: var(--color-cyan-deep); background: var(--color-cyan-soft); box-shadow: inset 0 0 0 1px var(--color-cyan-deep); }
+    .radio input:focus-visible + label { outline: 3px solid var(--color-focus); outline-offset: 3px; }
+    .radio-name { display: flex; align-items: center; gap: .5rem; font-weight: 700; font-size: .86rem; }
+    .radio-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--color-cyan); border: 1px solid var(--color-cyan-deep); }
+    .radio:nth-child(2) .radio-dot { background: var(--color-lavender); border-color: var(--color-ink); }
+    .radio-note { display: block; margin-top: .28rem; color: var(--color-muted); font-size: .7rem; line-height: 1.35; }
+
+    .row { display: grid; grid-template-columns: minmax(0, 1fr) 112px; gap: .75rem; }
+    details.advanced { margin: .25rem 0 1rem; border-top: 1px solid var(--color-rule); border-bottom: 1px solid var(--color-rule); }
+    details.advanced summary { min-height: 45px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; font-size: .8rem; font-weight: 700; }
+    details.advanced summary::-webkit-details-marker { display: none; }
+    details.advanced summary::after { content: "+"; font: 600 1rem/1 var(--font-label); }
+    details.advanced[open] summary::after { content: "−"; }
+    .advanced-body { padding: 0 0 1rem; }
+
+    .btn {
+      --btn-face: var(--color-mint); --btn-ink: var(--color-ink); --btn-edge: var(--color-mint-deep); --btn-cast: var(--color-shadow);
+      width: 100%; min-height: 50px; display: inline-flex; align-items: center; justify-content: center; gap: .55rem;
+      padding: .8rem 1.2rem; font-weight: 700; border: 0; border-radius: var(--radius-pill); cursor: pointer;
+      color: var(--btn-ink); background: var(--btn-face); position: relative; isolation: isolate;
+      box-shadow: 0 4px 0 0 var(--btn-edge), 0 6px 12px -3px var(--btn-cast); transform: translateY(0);
+      transition: transform 140ms cubic-bezier(.2,.7,.3,1), box-shadow 140ms cubic-bezier(.2,.7,.3,1), background-color 160ms;
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
-    .result-meta { margin-top: 5px; color: var(--muted); font-size: 12px; }
-    .count-badge {
-      min-width: 34px;
-      height: 34px;
-      padding: 0 10px;
-      border-radius: 12px;
-      display: grid;
-      place-items: center;
-      background: rgba(139, 92, 246, 0.14);
-      color: #c4b5fd;
-      border: 1px solid rgba(139, 92, 246, 0.2);
-      font-weight: 800;
-      font-size: 12px;
-    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 0 0 var(--btn-edge), 0 12px 22px -4px var(--btn-cast); }
+    .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 0 var(--btn-edge), 0 2px 6px -2px var(--btn-cast); transition-duration: 70ms; }
+    .btn:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; }
+    .btn[disabled] { opacity: .55; cursor: wait; pointer-events: none; transform: none; box-shadow: 0 4px 0 0 var(--btn-edge); }
+    .btn-arrow { transition: transform 160ms var(--ease-out); }
+    .btn:hover .btn-arrow { transform: translateX(3px); }
+
+    .privacy-note { display: flex; align-items: flex-start; gap: .65rem; margin: 1.05rem 0 0; color: var(--color-muted); font-size: .72rem; line-height: 1.45; }
+    .privacy-icon { flex: 0 0 auto; width: 21px; height: 21px; border-radius: 7px; display: grid; place-items: center; background: var(--color-pear-soft); border: 1px solid var(--color-pear-deep); font: 600 .65rem/1 var(--font-label); color: var(--color-ink); }
+
+    .inbox-head { background: var(--color-pear-soft); }
+    .count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 38px; min-height: 30px; padding: 0 .55rem; border: 1px solid var(--color-ink); border-radius: var(--radius-pill); background: var(--color-pear); font: 700 .7rem/1 var(--font-label); }
+    .inbox-body { min-height: 590px; padding: .85rem; background: var(--color-paper); }
+
     .empty {
-      min-height: 470px;
-      display: grid;
-      place-items: center;
-      padding: 30px;
-      text-align: center;
-      color: var(--muted);
+      min-height: 555px; display: grid; place-items: center; padding: 2rem; text-align: center;
     }
-    .empty-inner { max-width: 330px; }
-    .empty-icon {
-      width: 72px;
-      height: 72px;
-      border-radius: 22px;
-      margin: 0 auto 18px;
-      display: grid;
-      place-items: center;
-      font-size: 30px;
-      background: linear-gradient(145deg, rgba(124,58,237,.18), rgba(34,211,238,.08));
-      border: 1px solid var(--line);
+    .empty-inner { max-width: 400px; }
+    .mail-art { width: 132px; height: 104px; position: relative; margin: 0 auto 1.4rem; }
+    .mail-art-envelope {
+      position: absolute; left: 9px; right: 9px; bottom: 4px; height: 72px;
+      border: 3px solid var(--color-ink); border-radius: 13px; background: var(--color-paper-2); overflow: hidden; box-shadow: 0 8px 0 var(--color-pear-deep);
     }
-    .empty h2 { margin: 0 0 8px; color: #e2e8f0; font-size: 17px; }
-    .empty p { margin: 0; line-height: 1.6; font-size: 13px; }
-    .message-list {
-      display: none;
-      max-height: 720px;
-      overflow: auto;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(139,92,246,.45) transparent;
+    .mail-art-envelope::before, .mail-art-envelope::after {
+      content: ""; position: absolute; width: 88px; height: 88px; top: -55px; background: var(--color-pear); border: 3px solid var(--color-ink); transform: rotate(45deg);
     }
-    .mail {
-      padding: 19px 22px;
-      border-bottom: 1px solid var(--line);
-      transition: background .15s ease;
+    .mail-art-envelope::before { left: -42px; }
+    .mail-art-envelope::after { right: -42px; }
+    .mail-art-stamp {
+      position: absolute; z-index: 4; right: 0; top: 4px; width: 37px; height: 37px; display: grid; place-items: center;
+      border: 2.5px solid var(--color-ink); border-radius: 11px; background: var(--color-coral); color: var(--color-white); font: 700 .7rem/1 var(--font-label); transform: rotate(6deg);
     }
-    .mail:hover { background: rgba(30, 41, 59, 0.28); }
-    .mail:last-child { border-bottom: 0; }
-    .mail-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      margin-bottom: 7px;
+    .empty-title { margin: 0; font-size: clamp(1.55rem, 3vw, 2.25rem); line-height: 1.05; letter-spacing: -.04em; font-weight: 600; font-style: normal; }
+    .empty-copy { margin: .85rem auto 0; max-width: 34ch; color: var(--color-muted); font-size: .9rem; }
+
+    .notice { display: none; margin: .15rem .15rem .85rem; padding: .85rem 1rem; border-radius: 14px; font-size: .82rem; line-height: 1.45; }
+    .notice.is-error { display: block; background: var(--color-coral-soft); border: 1px solid var(--color-coral); color: var(--color-ink); }
+    .notice.is-info { display: block; background: var(--color-cyan-soft); border: 1px solid var(--color-cyan); color: var(--color-ink); }
+
+    .mail-list { display: grid; gap: .65rem; }
+    .mail-card {
+      min-width: 0; border: 1.5px solid var(--color-rule); border-radius: 17px; background: var(--color-quiet); overflow: hidden;
+      transition: transform 170ms var(--ease-out), border-color 170ms, box-shadow 170ms, background-color 170ms;
     }
-    .from {
-      min-width: 0;
-      font-size: 13px;
-      font-weight: 800;
-      color: #c7d2fe;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+    .mail-card:hover { transform: translateY(-2px); border-color: var(--color-rule-strong); box-shadow: var(--shadow-card-hover); background: var(--color-white); }
+    .mail-card[open] { border-color: var(--color-cyan-deep); background: var(--color-white); }
+    .mail-summary { list-style: none; cursor: pointer; padding: 1rem; display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: .8rem; align-items: start; }
+    .mail-summary::-webkit-details-marker { display: none; }
+    .unread-dot { width: 10px; height: 10px; margin-top: .36rem; border-radius: 50%; background: var(--color-rule-strong); }
+    .mail-card.is-unread .unread-dot { background: var(--color-coral); box-shadow: 0 0 0 4px var(--color-coral-soft); }
+    .mail-main { min-width: 0; }
+    .mail-subject { margin: 0; font-size: .97rem; font-weight: 700; line-height: 1.3; letter-spacing: -.015em; overflow-wrap: anywhere; }
+    .mail-from { margin: .32rem 0 0; color: var(--color-muted); font-size: .74rem; line-height: 1.35; overflow-wrap: anywhere; }
+    .mail-date { color: var(--color-muted); font: 500 .61rem/1.4 var(--font-label); text-align: right; white-space: nowrap; }
+    .mail-preview { margin: .72rem 0 0 2.05rem; color: var(--color-ink-2); font-size: .81rem; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .mail-card[open] .mail-preview { display: none; }
+    .mail-body { border-top: 1px solid var(--color-rule); margin: 0 1rem; padding: 1rem 0 1.15rem 2.05rem; }
+    .mail-to { margin: 0 0 .75rem; color: var(--color-muted); font: 500 .63rem/1.5 var(--font-label); overflow-wrap: anywhere; }
+    .mail-content { margin: 0; max-height: 360px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; line-height: 1.62; color: var(--color-ink-2); }
+
+    .loading { display: grid; gap: .7rem; padding: .15rem; }
+    .skeleton { height: 90px; border-radius: 17px; border: 1.5px solid var(--color-rule); background: var(--color-paper-2); position: relative; overflow: hidden; }
+    .skeleton::after { content: ""; position: absolute; inset: 0; background: var(--color-cyan-soft); transform: translateX(-100%); animation: sweep 1.15s ease-in-out infinite; }
+    @keyframes sweep { to { transform: translateX(100%); } }
+
+    .legend {
+      margin-top: 1.25rem; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem;
     }
-    .date { flex: 0 0 auto; color: #64748b; font-size: 11px; }
-    .subject { margin: 0; color: #f8fafc; font-size: 15px; line-height: 1.45; letter-spacing: -0.01em; }
-    .mail-body {
-      margin-top: 10px;
-      color: #94a3b8;
-      font-size: 12.5px;
-      line-height: 1.65;
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-      display: -webkit-box;
-      -webkit-line-clamp: 4;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
+    .legend-item { min-width: 0; padding: .95rem 1rem; border-top: 1px solid var(--color-rule); }
+    .legend-n { margin: 0 0 .3rem; font: 600 .63rem/1 var(--font-label); letter-spacing: .1em; text-transform: uppercase; }
+    .legend-n::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: .5rem; background: var(--dot, var(--color-mint)); }
+    .legend-item:nth-child(2) { --dot: var(--color-cyan); }
+    .legend-item:nth-child(3) { --dot: var(--color-pear); }
+    .legend-p { margin: 0; color: var(--color-muted); font-size: .75rem; line-height: 1.45; }
+
+    .footer {
+      border-top: 1px solid var(--color-rule); padding: 1.4rem var(--page-gutter) 2rem;
     }
-    .mail.expanded .mail-body { display: block; max-height: 360px; overflow: auto; }
-    .mail-footer { display: flex; align-items: center; gap: 8px; margin-top: 11px; }
-    .mini-btn, .unread-pill { padding: 6px 9px; border-radius: 9px; font-size: 11px; font-weight: 750; }
-    .mini-btn { background: rgba(51, 65, 85, 0.54); border: 1px solid var(--line); color: #cbd5e1; }
-    .unread-pill { color: #6ee7b7; background: rgba(16,185,129,.09); border: 1px solid rgba(16,185,129,.16); }
-    .alert {
-      display: none;
-      margin: 20px 22px 0;
-      padding: 13px 14px;
-      border-radius: 13px;
-      color: #fecdd3;
-      background: rgba(190, 18, 60, 0.1);
-      border: 1px solid rgba(251, 113, 133, 0.22);
-      font-size: 12px;
-      line-height: 1.5;
+    .footer-inner { width: min(100%, var(--page-max)); margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; color: var(--color-muted); }
+    .footer strong { color: var(--color-ink); }
+    .footer-copy { font-size: .76rem; }
+    .footer-code { font: 500 .62rem/1.5 var(--font-label); letter-spacing: .07em; text-transform: uppercase; text-align: right; }
+
+    @media (max-width: 900px) {
+      .page { padding-top: 3rem; }
+      .workbench { grid-template-columns: minmax(0, 1fr); }
+      .panel--setup { position: static; }
+      .inbox-body { min-height: 470px; }
+      .empty { min-height: 435px; }
     }
-    .spinner {
-      width: 15px;
-      height: 15px;
-      display: none;
-      border: 2px solid rgba(255,255,255,.28);
-      border-top-color: white;
-      border-radius: 999px;
-      animation: spin .75s linear infinite;
-      vertical-align: -2px;
-      margin-right: 7px;
+
+    @media (max-width: 620px) {
+      .nav-wrap { min-height: 67px; }
+      .nav { min-height: 67px; }
+      .nav-status { display: none; }
+      .nav-link { min-height: 36px; padding-inline: .75rem; font-size: .77rem; }
+      .page { padding: 2.3rem 0 3rem; }
+      .steps { gap: .35rem; margin-bottom: 1.45rem; }
+      .step { min-height: 28px; padding-inline: .58rem; font-size: .56rem; }
+      .step-line { width: 12px; }
+      h1 { font-size: clamp(2.35rem, 13vw, 3.7rem); }
+      .lede { margin-top: 1rem; font-size: .96rem; }
+      .microcopy { font-size: .56rem; }
+      .workbench { gap: .9rem; }
+      .panel-head { min-height: 60px; padding: .9rem; }
+      .panel-body { padding: .9rem; }
+      .panel-chip { display: none; }
+      .row { grid-template-columns: minmax(0, 1fr); }
+      .radio-grid { grid-template-columns: minmax(0, 1fr); }
+      .radio label { min-height: 67px; }
+      .inbox-body { min-height: 390px; padding: .6rem; }
+      .empty { min-height: 360px; padding: 1.3rem .8rem; }
+      .mail-summary { grid-template-columns: 10px minmax(0, 1fr); gap: .62rem; padding: .85rem; }
+      .mail-date { grid-column: 2; text-align: left; margin-top: -.1rem; white-space: normal; }
+      .mail-preview { margin-left: 1.47rem; padding-right: .7rem; }
+      .mail-body { margin-inline: .85rem; padding-left: 1.47rem; }
+      .legend { grid-template-columns: minmax(0, 1fr); gap: 0; }
+      .footer-inner { align-items: flex-start; flex-direction: column; }
+      .footer-code { text-align: left; }
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    footer {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      margin-top: 20px;
-      color: #475569;
-      font-size: 11px;
-    }
-    footer a { color: #64748b; text-decoration: none; }
-    footer a:hover { color: #a5b4fc; }
-    @media (max-width: 850px) {
-      .layout { grid-template-columns: 1fr; }
-      .results-card { min-height: 460px; }
-      .empty { min-height: 380px; }
-      .topbar { margin-bottom: 30px; }
-    }
-    @media (max-width: 560px) {
-      .shell { width: min(100% - 20px, 1160px); padding-top: 18px; }
-      .status-pill { display: none; }
-      .hero { margin-bottom: 22px; }
-      h1 { font-size: clamp(42px, 17vw, 68px); }
-      .hero p { font-size: 14px; }
-      .grid-2 { grid-template-columns: 1fr; }
-      .card-header, form { padding-left: 18px; padding-right: 18px; }
-      .results-toolbar, .mail { padding-left: 18px; padding-right: 18px; }
-      .actions { flex-direction: column; }
-      .secondary { min-height: 44px; }
-      footer { flex-direction: column; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
     }
   </style>
 </head>
 <body>
-  <main class="shell">
-    <header class="topbar">
-      <a class="brand" href="/" aria-label="read_email home"><span class="logo">✉</span><span>read_email</span></a>
-      <div class="status-pill"><span class="status-dot"></span> API online</div>
-    </header>
+  <a class="skip" href="#workbench">Skip to mailbox reader</a>
 
-    <section class="hero">
-      <div class="eyebrow">Outlook · OAuth mailbox reader</div>
-      <h1>Your inbox, without the clutter.</h1>
-      <p>Paste one authorized Outlook/Hotmail account line, choose a backend, and read the newest messages through Microsoft OAuth. Credentials stay in this request and are not stored by the app.</p>
+  <header class="nav-wrap">
+    <nav class="nav" aria-label="Primary">
+      <a class="brand" href="/" aria-label="read_email home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>read_email</span>
+      </a>
+      <div class="nav-meta">
+        <span class="nav-status"><span class="status-dot" aria-hidden="true"></span>OAuth reader</span>
+        <a class="nav-link" href="/health">Health</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="page" id="workbench">
+    <section class="intro" aria-labelledby="page-title">
+      <div class="steps" aria-label="How it works">
+        <span class="step">01 account</span><span class="step-line" aria-hidden="true"></span>
+        <span class="step">02 OAuth</span><span class="step-line" aria-hidden="true"></span>
+        <span class="step">03 inbox</span>
+      </div>
+      <h1 id="page-title">One account in.<br />Your <span class="underline">inbox</span>, right here.</h1>
+      <p class="lede">Paste the four-field account line, choose how to talk to Microsoft, and read the newest messages without leaving the page.</p>
+      <p class="microcopy">Password field accepted for format compatibility · password is not used · credentials are not written to disk</p>
     </section>
 
-    <section class="layout">
-      <div class="card">
-        <div class="card-header">
+    <section class="workbench" aria-label="Mailbox workbench">
+      <form class="panel panel--setup" id="reader-form">
+        <header class="panel-head">
           <div>
-            <h2 class="card-title">Mailbox connection</h2>
-            <p class="card-subtitle">Format: email | password | refresh_token | client_id</p>
+            <p class="panel-kicker">Connection</p>
+            <h2 class="panel-title">Mailbox setup</h2>
           </div>
-        </div>
+          <span class="panel-chip">4 fields</span>
+        </header>
 
-        <form id="reader-form" autocomplete="off">
+        <div class="panel-body">
           <div class="field">
-            <label for="account">Account line <span class="hint">required</span></label>
-            <textarea id="account" spellcheck="false" placeholder="email|password|refresh_token|client_id" required></textarea>
-          </div>
-          <div class="field">
-            <label for="api-key">Reader API key <span class="hint">production</span></label>
-            <input id="api-key" type="password" placeholder="x-api-key" autocomplete="off" />
-          </div>
-          <div class="grid-2">
-            <div class="field">
-              <label for="backend">Backend</label>
-              <select id="backend"><option value="graph">Microsoft Graph</option><option value="imap">IMAP OAuth2</option></select>
-            </div>
-            <div class="field">
-              <label for="limit">Messages</label>
-              <select id="limit"><option value="5">5 newest</option><option value="10" selected>10 newest</option><option value="15">15 newest</option><option value="25">25 newest</option></select>
+            <label class="field-label" for="account">
+              <span>Account line</span>
+              <small>required</small>
+            </label>
+            <div class="account-wrap">
+              <textarea id="account" name="account" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="email|password|refresh_token|client_id" required></textarea>
             </div>
           </div>
-          <div class="actions">
-            <button class="primary" id="submit-btn" type="submit"><span class="spinner" id="spinner"></span><span id="submit-label">Read inbox</span></button>
-            <button class="secondary" id="clear-btn" type="button">Clear</button>
-          </div>
-          <div class="security">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 5 6v5c0 4.7 2.8 8.9 7 10 4.2-1.1 7-5.3 7-10V6l-7-3Z" stroke="currentColor" stroke-width="1.7"/><path d="m9.4 12.1 1.6 1.6 3.7-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <span>The password field is accepted only for compatibility and is not used for Microsoft authentication. Do not use this page for mailboxes you are not authorized to access.</span>
-          </div>
-        </form>
-      </div>
 
-      <div class="card results-card">
-        <div class="results-toolbar">
-          <div class="result-title-wrap"><h2 class="result-title" id="result-title">Inbox preview</h2><div class="result-meta" id="result-meta">Waiting for a mailbox connection</div></div>
-          <div class="count-badge" id="count-badge">0</div>
+          <fieldset class="field" style="border:0;padding:0;margin-inline:0">
+            <legend class="field-label" style="width:100%;margin-bottom:.5rem">
+              <span>Backend</span>
+              <small>choose one</small>
+            </legend>
+            <div class="radio-grid">
+              <div class="radio">
+                <input type="radio" id="backend-graph" name="backend" value="graph" checked />
+                <label for="backend-graph">
+                  <span class="radio-name"><span class="radio-dot"></span>Microsoft Graph</span>
+                  <span class="radio-note">HTTPS · friendlier to serverless</span>
+                </label>
+              </div>
+              <div class="radio">
+                <input type="radio" id="backend-imap" name="backend" value="imap" />
+                <label for="backend-imap">
+                  <span class="radio-name"><span class="radio-dot"></span>IMAP OAuth2</span>
+                  <span class="radio-note">Direct inbox protocol · port 993</span>
+                </label>
+              </div>
+            </div>
+          </fieldset>
+
+          <div class="row">
+            <div class="field">
+              <label class="field-label" for="limit"><span>Messages</span><small>newest</small></label>
+              <select id="limit" name="limit">
+                <option value="5">5 messages</option>
+                <option value="10" selected>10 messages</option>
+                <option value="15">15 messages</option>
+                <option value="25">25 messages</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field-label" for="sort-view"><span>View</span><small>local</small></label>
+              <select id="sort-view" disabled>
+                <option>Newest first</option>
+              </select>
+            </div>
+          </div>
+
+          <details class="advanced">
+            <summary>Advanced</summary>
+            <div class="advanced-body">
+              <div class="field">
+                <label class="field-label" for="api-key"><span>API key</span><small>optional</small></label>
+                <input id="api-key" name="api-key" type="password" autocomplete="off" placeholder="Only if READER_API_KEY is set" />
+              </div>
+            </div>
+          </details>
+
+          <button class="btn" id="read-button" type="submit">
+            <span id="button-label">Read inbox</span>
+            <span class="btn-arrow" aria-hidden="true">→</span>
+          </button>
+
+          <p class="privacy-note">
+            <span class="privacy-icon" aria-hidden="true">✓</span>
+            <span>The page sends the line only to this deployment's <code>/api/read</code> endpoint. It is not saved by the frontend.</span>
+          </p>
         </div>
-        <div class="alert" id="alert"></div>
-        <div class="empty" id="empty-state"><div class="empty-inner"><div class="empty-icon">☁</div><h2>No messages loaded</h2><p>Your newest emails will appear here. Message bodies are rendered as plain text for safer previewing.</p></div></div>
-        <div class="message-list" id="message-list"></div>
-      </div>
+      </form>
+
+      <section class="panel" aria-labelledby="inbox-title" aria-live="polite">
+        <header class="panel-head inbox-head">
+          <div>
+            <p class="panel-kicker" id="inbox-kicker">Mailbox</p>
+            <h2 class="panel-title" id="inbox-title">Inbox</h2>
+          </div>
+          <span class="count-badge" id="count-badge">—</span>
+        </header>
+
+        <div class="inbox-body">
+          <div class="notice" id="notice" role="status"></div>
+          <div id="results">
+            <div class="empty">
+              <div class="empty-inner">
+                <div class="mail-art" aria-hidden="true">
+                  <span class="mail-art-envelope"></span>
+                  <span class="mail-art-stamp">@</span>
+                </div>
+                <h3 class="empty-title">Waiting for an account.</h3>
+                <p class="empty-copy">Your newest messages will land here as a tidy, expandable stack.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </section>
 
-    <footer><span>read_email · Node.js · Vercel / Heroku ready</span><span><a href="/health" target="_blank" rel="noreferrer">Health endpoint ↗</a></span></footer>
+    <section class="legend" aria-label="How the reader handles credentials">
+      <article class="legend-item">
+        <p class="legend-n">Account</p>
+        <p class="legend-p">One four-field line per request. No bulk account list.</p>
+      </article>
+      <article class="legend-item">
+        <p class="legend-n">Access</p>
+        <p class="legend-p">Refresh token becomes a short-lived OAuth access token.</p>
+      </article>
+      <article class="legend-item">
+        <p class="legend-n">Output</p>
+        <p class="legend-p">Subject, sender, recipient, date and message text — nothing more.</p>
+      </article>
+    </section>
   </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <p class="footer-copy"><strong>read_email</strong> · a small mailbox workbench</p>
+      <p class="footer-code">Node.js · Graph / IMAP OAuth2 · Vercel / Heroku</p>
+    </div>
+  </footer>
 
   <script>
     (function () {
-      var form = document.getElementById("reader-form");
-      var account = document.getElementById("account");
-      var apiKey = document.getElementById("api-key");
-      var backend = document.getElementById("backend");
-      var limit = document.getElementById("limit");
-      var submitBtn = document.getElementById("submit-btn");
-      var submitLabel = document.getElementById("submit-label");
-      var spinner = document.getElementById("spinner");
-      var clearBtn = document.getElementById("clear-btn");
-      var list = document.getElementById("message-list");
-      var empty = document.getElementById("empty-state");
-      var alertBox = document.getElementById("alert");
-      var resultTitle = document.getElementById("result-title");
-      var resultMeta = document.getElementById("result-meta");
-      var countBadge = document.getElementById("count-badge");
+      var form = document.getElementById('reader-form');
+      var account = document.getElementById('account');
+      var apiKey = document.getElementById('api-key');
+      var limit = document.getElementById('limit');
+      var button = document.getElementById('read-button');
+      var buttonLabel = document.getElementById('button-label');
+      var results = document.getElementById('results');
+      var notice = document.getElementById('notice');
+      var countBadge = document.getElementById('count-badge');
+      var inboxKicker = document.getElementById('inbox-kicker');
 
-      function setLoading(value) {
-        submitBtn.disabled = value;
-        spinner.style.display = value ? "inline-block" : "none";
-        submitLabel.textContent = value ? "Reading…" : "Read inbox";
+      function selectedBackend() {
+        var checked = document.querySelector('input[name="backend"]:checked');
+        return checked ? checked.value : 'graph';
       }
-      function showError(message) { alertBox.textContent = message; alertBox.style.display = "block"; }
-      function clearError() { alertBox.textContent = ""; alertBox.style.display = "none"; }
-      function formatDate(value) {
-        if (!value) return "Unknown date";
-        var date = new Date(value);
-        if (Number.isNaN(date.getTime())) return String(value);
-        return date.toLocaleString(undefined, { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+      function showNotice(message, type) {
+        notice.className = 'notice ' + (type === 'error' ? 'is-error' : 'is-info');
+        notice.textContent = message;
       }
-      function safeString(value) { if (Array.isArray(value)) return value.join(", "); return value == null ? "" : String(value); }
-      function addText(parent, className, text, tagName) {
-        var el = document.createElement(tagName || "div");
-        if (className) el.className = className;
-        el.textContent = text;
-        parent.appendChild(el);
-        return el;
+
+      function clearNotice() {
+        notice.className = 'notice';
+        notice.textContent = '';
       }
-      function renderMessages(data) {
-        list.replaceChildren();
-        var messages = Array.isArray(data.messages) ? data.messages : [];
-        resultTitle.textContent = data.email || "Inbox preview";
-        resultMeta.textContent = (data.backend || "mail") + " · newest messages";
-        countBadge.textContent = String(messages.length);
-        if (!messages.length) {
-          list.style.display = "none";
-          empty.style.display = "grid";
-          empty.querySelector("h2").textContent = "Inbox is empty";
-          empty.querySelector("p").textContent = "No messages were returned for this request.";
+
+      function setLoading(isLoading) {
+        button.disabled = isLoading;
+        buttonLabel.textContent = isLoading ? 'Reading…' : 'Read inbox';
+        if (!isLoading) return;
+
+        results.textContent = '';
+        var loading = document.createElement('div');
+        loading.className = 'loading';
+        for (var i = 0; i < 4; i += 1) {
+          var row = document.createElement('div');
+          row.className = 'skeleton';
+          loading.appendChild(row);
+        }
+        results.appendChild(loading);
+        countBadge.textContent = '…';
+      }
+
+      function cleanText(value) {
+        return typeof value === 'string' ? value.trim() : '';
+      }
+
+      function shortDate(value) {
+        if (!value) return 'No date';
+        var parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return String(value);
+        return new Intl.DateTimeFormat(undefined, {
+          month: 'short', day: 'numeric',
+          hour: '2-digit', minute: '2-digit'
+        }).format(parsed);
+      }
+
+      function listToText(value) {
+        if (Array.isArray(value)) return value.filter(Boolean).join(', ');
+        return cleanText(value);
+      }
+
+      function emptyResult(title, copy) {
+        results.textContent = '';
+        var wrap = document.createElement('div');
+        wrap.className = 'empty';
+        var inner = document.createElement('div');
+        inner.className = 'empty-inner';
+        var h = document.createElement('h3');
+        h.className = 'empty-title';
+        h.textContent = title;
+        var p = document.createElement('p');
+        p.className = 'empty-copy';
+        p.textContent = copy;
+        inner.appendChild(h);
+        inner.appendChild(p);
+        wrap.appendChild(inner);
+        results.appendChild(wrap);
+      }
+
+      function renderMessages(messages) {
+        results.textContent = '';
+        if (!Array.isArray(messages) || messages.length === 0) {
+          countBadge.textContent = '0';
+          emptyResult('Inbox came back empty.', 'No messages were returned for this account and backend.');
           return;
         }
-        empty.style.display = "none";
-        list.style.display = "block";
+
+        countBadge.textContent = String(messages.length);
+        var list = document.createElement('div');
+        list.className = 'mail-list';
+
         messages.forEach(function (message) {
-          var article = document.createElement("article");
-          article.className = "mail";
-          var top = document.createElement("div");
-          top.className = "mail-top";
-          addText(top, "from", safeString(message.from) || "Unknown sender");
-          addText(top, "date", formatDate(message.date));
-          article.appendChild(top);
-          addText(article, "subject", safeString(message.subject) || "(No subject)", "h3");
-          addText(article, "mail-body", safeString(message.body) || "No text preview available.");
-          var footer = document.createElement("div");
-          footer.className = "mail-footer";
-          if (message.unread === true) addText(footer, "unread-pill", "Unread");
-          var expand = document.createElement("button");
-          expand.type = "button";
-          expand.className = "mini-btn";
-          expand.textContent = "Expand body";
-          expand.addEventListener("click", function () {
-            var expanded = article.classList.toggle("expanded");
-            expand.textContent = expanded ? "Collapse body" : "Expand body";
-          });
-          footer.appendChild(expand);
-          article.appendChild(footer);
-          list.appendChild(article);
+          var card = document.createElement('details');
+          card.className = 'mail-card' + (message.unread === true ? ' is-unread' : '');
+
+          var summary = document.createElement('summary');
+          summary.className = 'mail-summary';
+
+          var dot = document.createElement('span');
+          dot.className = 'unread-dot';
+          dot.setAttribute('aria-hidden', 'true');
+
+          var main = document.createElement('div');
+          main.className = 'mail-main';
+          var subject = document.createElement('p');
+          subject.className = 'mail-subject';
+          subject.textContent = cleanText(message.subject) || '(no subject)';
+          var from = document.createElement('p');
+          from.className = 'mail-from';
+          from.textContent = cleanText(message.from) || 'Unknown sender';
+          main.appendChild(subject);
+          main.appendChild(from);
+
+          var date = document.createElement('time');
+          date.className = 'mail-date';
+          date.textContent = shortDate(message.date);
+          if (message.date) date.dateTime = String(message.date);
+
+          summary.appendChild(dot);
+          summary.appendChild(main);
+          summary.appendChild(date);
+
+          var preview = document.createElement('p');
+          preview.className = 'mail-preview';
+          preview.textContent = cleanText(message.body) || 'No text body.';
+
+          var body = document.createElement('div');
+          body.className = 'mail-body';
+          var to = document.createElement('p');
+          to.className = 'mail-to';
+          to.textContent = 'TO · ' + (listToText(message.to) || 'Unknown recipient');
+          var content = document.createElement('pre');
+          content.className = 'mail-content';
+          content.textContent = cleanText(message.body) || 'No text body.';
+          body.appendChild(to);
+          body.appendChild(content);
+
+          card.appendChild(summary);
+          card.appendChild(preview);
+          card.appendChild(body);
+          list.appendChild(card);
         });
+
+        results.appendChild(list);
       }
 
-      form.addEventListener("submit", async function (event) {
+      form.addEventListener('submit', async function (event) {
         event.preventDefault();
-        clearError();
-        var accountValue = account.value.trim();
-        if (!accountValue) { showError("Paste an account line first."); account.focus(); return; }
+        clearNotice();
+
+        var line = account.value.trim();
+        if (!line) {
+          showNotice('Paste an account line first.', 'error');
+          account.focus();
+          return;
+        }
+
         setLoading(true);
+        inboxKicker.textContent = 'Connecting';
+
         try {
-          var headers = { "content-type": "application/json" };
-          if (apiKey.value.trim()) headers["x-api-key"] = apiKey.value.trim();
-          var response = await fetch("/api/read", {
-            method: "POST",
+          var headers = { 'content-type': 'application/json' };
+          if (apiKey.value.trim()) headers['x-api-key'] = apiKey.value.trim();
+
+          var response = await fetch('/api/read', {
+            method: 'POST',
             headers: headers,
-            body: JSON.stringify({ account: accountValue, backend: backend.value, limit: Number(limit.value) })
+            body: JSON.stringify({
+              account: line,
+              backend: selectedBackend(),
+              limit: Number(limit.value)
+            })
           });
+
           var data;
-          try { data = await response.json(); } catch (e) { throw new Error("Server returned a non-JSON response."); }
-          if (!response.ok || !data.ok) throw new Error(data.error || "Mailbox read failed.");
-          renderMessages(data);
+          try {
+            data = await response.json();
+          } catch (parseError) {
+            throw new Error('The server returned a non-JSON response.');
+          }
+
+          if (!response.ok || !data.ok) {
+            throw new Error(data && data.error ? data.error : 'Mailbox request failed.');
+          }
+
+          inboxKicker.textContent = data.email || 'Mailbox';
+          renderMessages(data.messages || []);
+          showNotice('Connected with ' + String(data.backend || selectedBackend()).toUpperCase() + ' · newest messages loaded.', 'info');
         } catch (error) {
-          showError(error && error.message ? error.message : "Mailbox read failed.");
+          inboxKicker.textContent = 'Mailbox';
+          countBadge.textContent = '!';
+          emptyResult('Could not read this inbox.', 'Check the account line, OAuth scope, token status and selected backend.');
+          showNotice(error && error.message ? error.message : 'Mailbox request failed.', 'error');
         } finally {
           setLoading(false);
         }
-      });
-
-      clearBtn.addEventListener("click", function () {
-        account.value = "";
-        apiKey.value = "";
-        clearError();
-        list.replaceChildren();
-        list.style.display = "none";
-        empty.style.display = "grid";
-        empty.querySelector("h2").textContent = "No messages loaded";
-        empty.querySelector("p").textContent = "Your newest emails will appear here. Message bodies are rendered as plain text for safer previewing.";
-        resultTitle.textContent = "Inbox preview";
-        resultMeta.textContent = "Waiting for a mailbox connection";
-        countBadge.textContent = "0";
-        account.focus();
       });
     })();
   </script>
