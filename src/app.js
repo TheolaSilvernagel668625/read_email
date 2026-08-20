@@ -77,14 +77,217 @@ const LOADING_LAYOUT_FIX = String.raw`<style id="read-email-loading-layout-fix">
   }
 </style>`;
 
+const AUTO_FETCH_COUNTDOWN_STYLE = String.raw`<style id="read-email-auto-fetch-countdown-style">
+  .auto-fetch-copy {
+    flex: 1 1 auto;
+  }
+  .auto-fetch-note {
+    font-variant-numeric: tabular-nums;
+  }
+  .auto-fetch-progress {
+    display: block;
+    width: min(190px, 100%);
+    height: 3px;
+    margin-top: .48rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--color-rule);
+    opacity: .7;
+  }
+  .auto-fetch-progress-bar {
+    display: block;
+    width: 0%;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--color-cyan);
+    transform-origin: left center;
+    transition: width 220ms linear, background-color 160ms, opacity 160ms;
+  }
+  .auto-fetch.is-counting .auto-fetch-progress-bar {
+    background: var(--color-cyan);
+  }
+  .auto-fetch.is-refreshing .auto-fetch-progress-bar {
+    width: 100% !important;
+    background: var(--color-mint-deep);
+    animation: auto-fetch-pulse 850ms ease-in-out infinite alternate;
+  }
+  .auto-fetch.is-paused .auto-fetch-progress-bar,
+  .auto-fetch.is-waiting .auto-fetch-progress-bar,
+  .auto-fetch:not(.is-enabled) .auto-fetch-progress-bar {
+    width: 0% !important;
+    opacity: .45;
+  }
+  @keyframes auto-fetch-pulse {
+    from { opacity: .35; }
+    to { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .auto-fetch-progress-bar {
+      transition: none;
+      animation: none !important;
+    }
+  }
+</style>`;
+
+const AUTO_FETCH_COUNTDOWN_SCRIPT = String.raw`<script id="read-email-auto-fetch-countdown-script">
+(function () {
+  var AUTO_FETCH_MS = 30000;
+  var tickTimer = null;
+  var nextRefreshAt = 0;
+
+  function accountLooksValid(value) {
+    var parts = String(value || '').trim().split('|');
+    return parts.length === 4 && parts[0].includes('@') && parts[2].trim() && parts[3].trim();
+  }
+
+  function pad2(value) {
+    return String(Math.max(0, value)).padStart(2, '0');
+  }
+
+  function installCountdown() {
+    var autoInput = document.getElementById('auto-fetch');
+    var account = document.getElementById('account');
+    var form = document.getElementById('reader-form');
+    var readButton = document.getElementById('read-button');
+    var row = autoInput ? autoInput.closest('.auto-fetch') : null;
+    var note = row ? row.querySelector('.auto-fetch-note') : null;
+    var copy = row ? row.querySelector('.auto-fetch-copy') : null;
+
+    if (!autoInput || !account || !form || !readButton || !row || !note || !copy) return;
+    if (row.dataset.countdownInstalled === '1') return;
+    row.dataset.countdownInstalled = '1';
+
+    var progress = document.createElement('span');
+    progress.className = 'auto-fetch-progress';
+    progress.setAttribute('aria-hidden', 'true');
+
+    var progressBar = document.createElement('span');
+    progressBar.className = 'auto-fetch-progress-bar';
+    progress.appendChild(progressBar);
+    copy.appendChild(progress);
+
+    function setState(name) {
+      row.classList.remove('is-enabled', 'is-counting', 'is-refreshing', 'is-paused', 'is-waiting');
+      if (autoInput.checked) row.classList.add('is-enabled');
+      if (name) row.classList.add(name);
+    }
+
+    function resetCountdown() {
+      nextRefreshAt = Date.now() + AUTO_FETCH_MS;
+    }
+
+    function update() {
+      if (!autoInput.checked) {
+        setState('');
+        note.textContent = 'Refresh every 30 seconds';
+        progressBar.style.width = '0%';
+        return;
+      }
+
+      if (!accountLooksValid(account.value)) {
+        setState('is-waiting');
+        note.textContent = 'Waiting for a valid account';
+        progressBar.style.width = '0%';
+        return;
+      }
+
+      if (document.hidden) {
+        setState('is-paused');
+        note.textContent = 'Paused while tab is hidden';
+        progressBar.style.width = '0%';
+        return;
+      }
+
+      if (readButton.disabled) {
+        setState('is-refreshing');
+        note.textContent = 'Refreshing…';
+        return;
+      }
+
+      if (!nextRefreshAt) resetCountdown();
+
+      var remaining = Math.max(0, nextRefreshAt - Date.now());
+      var seconds = Math.ceil(remaining / 1000);
+      var ratio = Math.max(0, Math.min(1, remaining / AUTO_FETCH_MS));
+
+      setState('is-counting');
+      note.textContent = 'Next refresh · 00:' + pad2(seconds);
+      progressBar.style.width = (ratio * 100).toFixed(2) + '%';
+    }
+
+    form.addEventListener('submit', function () {
+      resetCountdown();
+      requestAnimationFrame(update);
+    });
+
+    autoInput.addEventListener('change', function () {
+      if (autoInput.checked) resetCountdown();
+      else nextRefreshAt = 0;
+      requestAnimationFrame(update);
+    });
+
+    account.addEventListener('input', function () {
+      if (autoInput.checked && accountLooksValid(account.value)) resetCountdown();
+      update();
+    });
+
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && autoInput.checked && accountLooksValid(account.value)) {
+        if (!nextRefreshAt || nextRefreshAt <= Date.now()) resetCountdown();
+      }
+      update();
+    });
+
+    var disabledObserver = new MutationObserver(function () {
+      if (!readButton.disabled && autoInput.checked && accountLooksValid(account.value)) {
+        if (!nextRefreshAt || nextRefreshAt <= Date.now()) resetCountdown();
+      }
+      update();
+    });
+    disabledObserver.observe(readButton, { attributes: true, attributeFilter: ['disabled'] });
+
+    if (autoInput.checked && accountLooksValid(account.value)) resetCountdown();
+    update();
+
+    tickTimer = setInterval(update, 250);
+  }
+
+  function installWhenReady() {
+    installCountdown();
+    if (document.getElementById('auto-fetch')) return;
+
+    var observer = new MutationObserver(function () {
+      if (document.getElementById('auto-fetch')) {
+        observer.disconnect();
+        installCountdown();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installWhenReady, { once: true });
+  } else {
+    installWhenReady();
+  }
+})();
+</script>`;
+
 const PAGE_HTML = HOME_HTML
   .replace(
     "</head>",
-    ENHANCEMENT_STYLE + LOADING_LAYOUT_FIX + EMAIL_RENDERER_STYLE + "</head>"
+    ENHANCEMENT_STYLE +
+      LOADING_LAYOUT_FIX +
+      AUTO_FETCH_COUNTDOWN_STYLE +
+      EMAIL_RENDERER_STYLE +
+      "</head>"
   )
   .replace(
     "</body>",
-    ENHANCEMENT_SCRIPT + EMAIL_RENDERER_SCRIPT + "</body>"
+    ENHANCEMENT_SCRIPT +
+      AUTO_FETCH_COUNTDOWN_SCRIPT +
+      EMAIL_RENDERER_SCRIPT +
+      "</body>"
   );
 
 function apiKeyMiddleware(req, res, next) {
