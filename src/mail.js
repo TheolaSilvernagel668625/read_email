@@ -27,6 +27,7 @@ function redactValue(value, secrets = [], depth = 0) {
   if (typeof value === "string") return redactText(value, secrets);
   if (value === null || value === undefined || typeof value === "number" || typeof value === "boolean") return value;
   if (Array.isArray(value)) return value.map((item) => redactValue(item, secrets, depth + 1));
+
   if (typeof value === "object") {
     const output = {};
     for (const [key, item] of Object.entries(value)) {
@@ -38,6 +39,7 @@ function redactValue(value, secrets = [], depth = 0) {
     }
     return output;
   }
+
   return String(value);
 }
 
@@ -109,7 +111,9 @@ function parseAccount(line) {
   return { email, password, refreshToken, clientId };
 }
 
-async function readResponse(response, secrets = []) {
+// IMPORTANT: this function returns the provider payload untouched.
+// Never redact here because the caller may need a real access_token.
+async function readResponseRaw(response) {
   const rawBody = await response.text();
   let payload = null;
 
@@ -122,9 +126,19 @@ async function readResponse(response, secrets = []) {
   }
 
   return {
-    rawBody: redactText(rawBody, secrets),
-    payload: redactValue(payload, secrets),
-    headers: redactValue(headersToObject(response.headers), secrets)
+    rawBody,
+    payload,
+    headers: headersToObject(response.headers)
+  };
+}
+
+function safeResponseDetails(response, responseData, secrets = []) {
+  return {
+    status: response.status,
+    statusText: response.statusText,
+    headers: redactValue(responseData.headers, secrets),
+    payload: redactValue(responseData.payload, secrets),
+    rawBody: redactText(responseData.rawBody, secrets)
   };
 }
 
@@ -161,12 +175,12 @@ async function getAccessToken(account, scope) {
     );
   }
 
-  const responseData = await readResponse(response, [account.refreshToken]);
+  const responseData = await readResponseRaw(response);
 
   if (!response.ok) {
     const payload = responseData.payload || {};
     const errorName = payload.error || "token_error";
-    const description = payload.error_description || responseData.rawBody || "Token exchange failed.";
+    const description = payload.error_description || redactText(responseData.rawBody, [account.refreshToken]) || "Token exchange failed.";
 
     throw makeProviderError(`${errorName}: ${description}`, {
       provider: "microsoft_token",
@@ -175,17 +189,17 @@ async function getAccessToken(account, scope) {
       details: {
         endpoint: tokenEndpoint,
         scope,
-        status: response.status,
-        statusText: response.statusText,
-        headers: responseData.headers,
-        payload: responseData.payload,
-        rawBody: responseData.rawBody
+        ...safeResponseDetails(response, responseData, [account.refreshToken])
       }
     });
   }
 
+  // Use the RAW payload here. Sanitizing before this point would replace
+  // access_token with "[REDACTED]" and send that literal string to Graph/IMAP.
   const payload = responseData.payload || {};
-  if (!payload.access_token) {
+  const accessToken = typeof payload.access_token === "string" ? payload.access_token : "";
+
+  if (!accessToken) {
     throw makeProviderError("Microsoft token response did not include access_token.", {
       provider: "microsoft_token",
       code: "TOKEN_RESPONSE_MISSING_ACCESS_TOKEN",
@@ -193,15 +207,12 @@ async function getAccessToken(account, scope) {
       details: {
         endpoint: tokenEndpoint,
         scope,
-        status: response.status,
-        statusText: response.statusText,
-        headers: responseData.headers,
-        payload: redactValue(payload, [account.refreshToken])
+        ...safeResponseDetails(response, responseData, [account.refreshToken])
       }
     });
   }
 
-  return payload.access_token;
+  return accessToken;
 }
 
 function addressToString(address) {
@@ -334,12 +345,12 @@ async function readGraph(account, limit) {
     );
   }
 
-  const responseData = await readResponse(response, [account.refreshToken, accessToken]);
+  const responseData = await readResponseRaw(response);
 
   if (!response.ok) {
     const detail = responseData.payload && responseData.payload.error ? responseData.payload.error : {};
     const code = detail.code || `GRAPH_HTTP_${response.status}`;
-    const message = detail.message || responseData.rawBody || "Mailbox read failed.";
+    const message = detail.message || redactText(responseData.rawBody, [account.refreshToken, accessToken]) || "Mailbox read failed.";
 
     throw makeProviderError(`Microsoft Graph ${response.status}: ${message}`, {
       provider: "microsoft_graph",
@@ -347,11 +358,7 @@ async function readGraph(account, limit) {
       status: response.status,
       details: {
         endpoint: url.toString(),
-        status: response.status,
-        statusText: response.statusText,
-        headers: responseData.headers,
-        payload: responseData.payload,
-        rawBody: responseData.rawBody
+        ...safeResponseDetails(response, responseData, [account.refreshToken, accessToken])
       }
     });
   }
@@ -361,7 +368,9 @@ async function readGraph(account, limit) {
     id: item.id || "",
     subject: item.subject || "",
     from: (item.from && item.from.emailAddress && item.from.emailAddress.address) || "",
-    to: (item.toRecipients || []).map((recipient) => recipient && recipient.emailAddress && recipient.emailAddress.address).filter(Boolean),
+    to: (item.toRecipients || [])
+      .map((recipient) => recipient && recipient.emailAddress && recipient.emailAddress.address)
+      .filter(Boolean),
     date: item.receivedDateTime || null,
     unread: typeof item.isRead === "boolean" ? !item.isRead : null,
     body: ((item.body && typeof item.body.content === "string") ? item.body.content : (item.bodyPreview || "")).slice(0, 10000)
